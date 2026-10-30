@@ -266,7 +266,7 @@ Windows 构建/发布工作流位于 [`.github/workflows/release.yml`](.github/w
 - 上传未签名安装包和校验文件作为 workflow artifacts；
 - SignPath 签名步骤已预留，但在申请通过前保持禁用。
 
-安全问题和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
+首次手动构建已通过（[run 41101445713](https://github.com/nxndai/MinePilot/actions/runs/41101445713)），产物包含两个安装包、两个 `.sha256` 和 Release 说明。安全问题和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
 
 ## 独立应用版（默认）
 

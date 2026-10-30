@@ -1,6 +1,6 @@
 # SignPath Foundation 申请材料
 
-> 状态：申请尚未提交。公开仓库已建立（https://github.com/nxndai/MinePilot），已加入 GitHub Actions 测试与 Windows 构建/发布 workflow（支持手动触发和 `v*` tag 触发），并发布了包含安装包和 `.sha256` 的 v1.8.0 Release；首次构建 workflow 运行和 SignPath 签名流程仍待验证/接入。
+> 状态：申请尚未提交。公开仓库已建立（https://github.com/nxndai/MinePilot），已加入 GitHub Actions 测试与 Windows 构建/发布 workflow（支持手动触发和 `v*` tag 触发）；Windows 构建已成功运行，v1.8.0 Release 已发布；SignPath 签名流程仍待申请通过后接入。
 > 本文是可直接粘贴到申请表的英文草稿，以及提交前检查清单。
 
 ## 先说明两件事
@@ -12,7 +12,7 @@
 
 - [x] 公开仓库地址（GitHub 或 Gitee），能匿名访问源码
 - [x] 仓库根目录包含 `LICENSE`（MIT）和完整 README
-- [ ] 至少一条 CI 构建记录（Windows 构建 workflow 已加入，首次运行待验证）
+- [x] 至少一条 CI 构建记录（[Windows build run 41101445713](https://github.com/nxndai/MinePilot/actions/runs/41101445713)）
 - [x] 至少一个公开 Release，包含安装包和 `.sha256`（v1.8.0）
 - [x] 项目网站或 Release 页面地址（https://github.com/nxndai/MinePilot/releases）
 - [x] 有效的联系邮箱（asdf45612378900@163.com）
@@ -147,9 +147,8 @@ asdf45612378900@163.com
 
 ## 下一步
 
-公开仓库、测试 CI、Windows 构建 workflow 和首个公开 Release 已就绪。后续需要：
+公开仓库、测试 CI、Windows 构建 workflow 和首个公开 Release 已就绪；Windows 构建已成功跑通。后续需要：
 
-- 完成一次 Windows 构建 workflow 的实际运行，确认产物可复现；
 - 确认申请用的联系邮箱（现已填入 asdf45612378900@163.com，提交前请再次确认）；
 - 由你本人提交申请并接受 SignPath Foundation 条款；
 - 审核通过后，在 CI 中接入 SignPath 签名并重新计算签名后产物的 SHA256。

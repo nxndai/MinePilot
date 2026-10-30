@@ -14,3 +14,8 @@ electron-probe.txt
 *.log
 *.part
 *.tmp
+release-body.md
+tools/installer/sfx-staging-*/
+tools/installer/sfx-payload-*.zip
+tools/installer/sfx-stub-*.exe
+tools/installer/sfx-build-*.cs
