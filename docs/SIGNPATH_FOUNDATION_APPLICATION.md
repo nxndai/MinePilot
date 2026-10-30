@@ -1,6 +1,6 @@
 # SignPath Foundation 申请材料
 
-> 状态：申请尚未提交。公开仓库已建立（https://github.com/nxndai/MinePilot），已加入 GitHub Actions 测试，并发布了包含安装包和 `.sha256` 的 v1.8.0 Release；正式构建 workflow 和签名流程仍待补齐。
+> 状态：申请尚未提交。公开仓库已建立（https://github.com/nxndai/MinePilot），已加入 GitHub Actions 测试与 Windows 构建/发布 workflow（支持手动触发和 `v*` tag 触发），并发布了包含安装包和 `.sha256` 的 v1.8.0 Release；首次构建 workflow 运行和 SignPath 签名流程仍待验证/接入。
 > 本文是可直接粘贴到申请表的英文草稿，以及提交前检查清单。
 
 ## 先说明两件事
@@ -12,16 +12,16 @@
 
 - [x] 公开仓库地址（GitHub 或 Gitee），能匿名访问源码
 - [x] 仓库根目录包含 `LICENSE`（MIT）和完整 README
-- [ ] 至少一条 CI 构建记录（GitHub Actions / GitLab CI 等；当前 workflow 只做语法检查与测试，构建 workflow 待补）
+- [ ] 至少一条 CI 构建记录（Windows 构建 workflow 已加入，首次运行待验证）
 - [x] 至少一个公开 Release，包含安装包和 `.sha256`（v1.8.0）
-- [ ] 项目网站或 Release 页面地址
-- [ ] 有效的联系邮箱
+- [x] 项目网站或 Release 页面地址（https://github.com/nxndai/MinePilot/releases）
+- [x] 有效的联系邮箱（asdf45612378900@163.com）
 - [ ] 确认项目不含商业授权代码、PCL 代码或素材
 - [ ] 由你本人阅读并同意 SignPath Foundation 条款
 
 ## 可直接粘贴的英文申请内容
 
-以下 `<...>` 需要替换成真实信息。
+以下内容已填入公开仓库和联系邮箱；提交前请再次确认。
 
 ### Organization
 
@@ -85,13 +85,19 @@ Windows build (same scripts locally and in CI):
 - run node tools/download-electron.js to fetch pinned Electron 33.2.0 Windows x64
 - run node tools/package-win.js
 - run node tools/package-desktop-installer.js
+- run node tools/package-web.js
 - run node tools/package-installer.js
-- publish SHA256 checksums and the Windows artifacts
+- generate SHA256 checksums and publish the Windows artifacts
 
-The current GitHub Actions workflow (CI) runs syntax checks and tests on every
-push. The v1.8.0 release artifacts were built from commit 47d2cb6 with the
-packaging steps above and uploaded with SHA256 checksums. A release workflow
-that rebuilds the binaries and submits them to SignPath is still to be added.
+Two GitHub Actions workflows are included:
+- CI (.github/workflows/ci.yml): syntax checks and npm test on push/PR.
+- Build Windows release (.github/workflows/release.yml): runs on v* tags or by
+  manual dispatch, downloads Electron, builds both installers, generates
+  SHA256 files, uploads workflow artifacts, and can create/update a Release.
+
+The v1.8.0 release artifacts were built from commit 47d2cb6 with the same
+packaging steps and uploaded with SHA256 checksums. A SignPath signing step is
+reserved in the release workflow but is not enabled yet.
 ```
 
 ### Signing scope
@@ -106,8 +112,8 @@ MinePilot_Edge_Setup_1.8.0.exe (Edge fallback installer)
 
 ```text
 Releases are built from a tagged commit in GitHub Actions. Each release includes
-the installer, the portable application, and SHA256 checksum files. Release
-notes identify the exact version and known limitations.
+the Windows installer, the Edge fallback installer, and SHA256 checksum files.
+Release notes identify the exact version and known limitations.
 ```
 
 ### Current code signing
@@ -119,7 +125,7 @@ No. The current Windows builds are unsigned.
 ### Security contact
 
 ```text
-<security@example.com>
+asdf45612378900@163.com
 ```
 
 ## 申请时可能被追问的点
@@ -141,9 +147,9 @@ No. The current Windows builds are unsigned.
 
 ## 下一步
 
-公开仓库、测试 CI 和首个公开 Release 已就绪。后续需要：
+公开仓库、测试 CI、Windows 构建 workflow 和首个公开 Release 已就绪。后续需要：
 
-- 增加 Windows 构建/发布 workflow，确保 Release 能从源码自动复现；
-- 把本文件中的占位联系邮箱替换成真实邮箱；
+- 完成一次 Windows 构建 workflow 的实际运行，确认产物可复现；
+- 确认申请用的联系邮箱（现已填入 asdf45612378900@163.com，提交前请再次确认）；
 - 由你本人提交申请并接受 SignPath Foundation 条款；
 - 审核通过后，在 CI 中接入 SignPath 签名并重新计算签名后产物的 SHA256。

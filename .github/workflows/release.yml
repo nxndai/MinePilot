@@ -1,0 +1,204 @@
+﻿name: Build Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the v prefix; must match package.json'
+        required: true
+        default: '1.8.0'
+      publish_release:
+        description: 'Create or update a GitHub Release (tag builds always publish)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  ELECTRON_VERSION: '33.2.0'
+
+jobs:
+  build:
+    name: Build Windows installers
+    runs-on: windows-latest
+    env:
+      SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $isTag = $env:GITHUB_REF_TYPE -eq 'tag'
+          $raw = if ($isTag) { $env:GITHUB_REF_NAME } else { $env:INPUT_VERSION }
+          $version = $raw.Trim()
+          if ($version.StartsWith('v')) { $version = $version.Substring(1) }
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid version: $raw"
+          }
+          $packageVersion = (Get-Content package.json -Raw -Encoding UTF8 | ConvertFrom-Json).version
+          if ($packageVersion -ne $version) {
+            throw "package.json version $packageVersion does not match requested version $version"
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "Building MinePilot $version (tag=$isTag)"
+
+      - name: Cache Electron runtime
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: electron-${{ env.ELECTRON_VERSION }}-win32-x64
+
+      - name: Download Electron
+        shell: pwsh
+        run: node tools/download-electron.js $env:ELECTRON_VERSION
+
+      - name: Build portable application
+        shell: pwsh
+        run: node tools/package-win.js
+
+      - name: Build desktop installer
+        shell: pwsh
+        run: node tools/package-desktop-installer.js
+
+      - name: Build Edge application
+        shell: pwsh
+        run: node tools/package-web.js
+
+      - name: Build Edge installer
+        shell: pwsh
+        run: node tools/package-installer.js
+
+      # SignPath integration point.
+      #
+      # After the SignPath Foundation application is approved, add the real
+      # signing step here, before checksums and release publishing. The step
+      # must sign each final binary in this order:
+      #   1. dist/MinePilot/MinePilot.exe
+      #   2. dist/installer/MinePilot_Setup_<version>.exe
+      #   3. dist/installer/MinePilot_Edge_Setup_<version>.exe
+      #
+      # Expected secrets/variables:
+      #   secrets.SIGNPATH_API_TOKEN
+      #   vars.SIGNPATH_ORGANIZATION_ID
+      #   vars.SIGNPATH_PROJECT_SLUG
+      #   vars.SIGNPATH_SIGNING_POLICY_SLUG
+      #   vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG
+      #
+      # Replace this guard with the actual SignPath action. Keeping the guard
+      # prevents an accidental unsigned release if someone enables the flag
+      # before the signing step is wired up.
+      - name: SignPath signing guard
+        if: ${{ env.SIGNPATH_ENABLED == 'true' }}
+        shell: pwsh
+        run: |
+          throw "SIGNPATH_ENABLED is true, but the SignPath signing action is not configured yet. Add it before publishing."
+
+      - name: Generate SHA256 checksums
+        shell: pwsh
+        run: |
+          $installers = @(
+            "dist/installer/MinePilot_Setup_$env:VERSION.exe",
+            "dist/installer/MinePilot_Edge_Setup_$env:VERSION.exe"
+          )
+          foreach ($file in $installers) {
+            if (-not (Test-Path $file)) { throw "Missing release artifact: $file" }
+            $name = Split-Path $file -Leaf
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name" | Set-Content "$file.sha256" -Encoding ascii
+            Write-Host "$name  $hash"
+          }
+
+      - name: Generate release notes
+        shell: pwsh
+        run: |
+          $desktopHash = (Get-Content "dist/installer/MinePilot_Setup_$env:VERSION.exe.sha256" -Raw).Split(' ')[0].Trim()
+          $edgeHash = (Get-Content "dist/installer/MinePilot_Edge_Setup_$env:VERSION.exe.sha256" -Raw).Split(' ')[0].Trim()
+          $body = @'
+          ## MinePilot v{0}
+          
+          Windows 构建由 GitHub Actions 从公开源码生成。
+          
+          ### 下载
+          
+          | 文件 | 说明 |
+          | --- | --- |
+          | `MinePilot_Setup_{0}.exe` | Windows x64 安装包 |
+          | `MinePilot_Edge_Setup_{0}.exe` | Edge 备用版安装包 |
+          
+          每个安装包旁提供 `.sha256` 校验文件。
+          
+          ### 校验值
+          
+          ```text
+          {1}  MinePilot_Setup_{0}.exe
+          {2}  MinePilot_Edge_Setup_{0}.exe
+          ```
+          
+          ### 安全与正版提示
+          
+          > 本启动器仅作为本地游戏管理器，内置下载功能仅用于拉取用户已合法拥有的游戏文件。请确保您已购买正版 Minecraft。
+          
+          - “在线下载”默认关闭，开启后才能安装版本、下载模组/整合包或自动安装 Java。
+          - 项目不包含 PCL 的源代码或素材；PCL 使用其自定义分发许可，MinePilot 为独立实现。
+          - 仅从本仓库 Releases 下载，第三方转载包存在被篡改风险。
+          - 当前构建未进行代码签名；Windows SmartScreen 可能提示“未知发布者”，请核对 SHA256 后再运行。
+          
+          ### 构建信息
+          
+          - 版本：`{0}`
+          - 提交：`{3}`
+          - 工作流：`{4}`
+          '@ -f $env:VERSION, $desktopHash, $edgeHash, $env:GITHUB_SHA, "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          Set-Content release-body.md $body -Encoding utf8
+
+      - name: Upload unsigned Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MinePilot-${{ env.VERSION }}-windows
+          path: |
+            dist/installer/MinePilot_Setup_${{ env.VERSION }}.exe
+            dist/installer/MinePilot_Setup_${{ env.VERSION }}.exe.sha256
+            dist/installer/MinePilot_Edge_Setup_${{ env.VERSION }}.exe
+            dist/installer/MinePilot_Edge_Setup_${{ env.VERSION }}.exe.sha256
+            release-body.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: ${{ github.event_name == 'push' || inputs.publish_release == true }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: MinePilot v${{ env.VERSION }}
+          body_path: release-body.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: |
+            dist/installer/MinePilot_Setup_${{ env.VERSION }}.exe
+            dist/installer/MinePilot_Setup_${{ env.VERSION }}.exe.sha256
+            dist/installer/MinePilot_Edge_Setup_${{ env.VERSION }}.exe
+            dist/installer/MinePilot_Edge_Setup_${{ env.VERSION }}.exe.sha256

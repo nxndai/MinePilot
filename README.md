@@ -256,6 +256,18 @@ npm test
 
 测试覆盖启动器语言持久化、非法值回退，以及游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
 
+## 发布构建
+
+Windows 构建/发布工作流位于 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
+
+- 推送 `v*` 标签时自动构建两个安装包、生成 `.sha256` 并创建/更新 GitHub Release；
+- 也可以在 Actions 页面手动触发，填写版本号并选择是否发布 Release；
+- 工作流会下载固定版本 Electron 33.2.0，执行 `package-win.js`、`package-desktop-installer.js`、`package-web.js` 和 `package-installer.js`；
+- 上传未签名安装包和校验文件作为 workflow artifacts；
+- SignPath 签名步骤已预留，但在申请通过前保持禁用。
+
+安全问题和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
+
 ## 独立应用版（默认）
 
 打包后的 `dist/MinePilot/MinePilot.exe` 是独立应用主程序：

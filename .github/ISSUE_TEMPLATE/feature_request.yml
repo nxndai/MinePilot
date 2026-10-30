@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest an improvement or a new feature for MinePilot
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem first, then the proposed solution. Do not
+        include account tokens or other secrets.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what is difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional; existing workarounds or other launchers.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Versions and Java
+        - Downloads
+        - Mods and modpacks
+        - Accounts
+        - Appearance and language
+        - Diagnostics
+        - Packaging and updates
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for a similar request.
+          required: true
+        - label: This request is not a security vulnerability.
+          required: true

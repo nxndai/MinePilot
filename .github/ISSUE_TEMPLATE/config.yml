@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: mailto:asdf45612378900@163.com
+    about: Report security problems privately; do not open a public issue.
+  - name: Documentation and build instructions
+    url: https://github.com/nxndai/MinePilot#readme
+    about: Read the README for setup, packaging and troubleshooting.
