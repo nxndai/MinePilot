@@ -1,4 +1,4 @@
-﻿name: Build Windows release
+name: Build Windows release
 
 on:
   push:
@@ -30,6 +30,7 @@ jobs:
   build:
     name: Build Windows installers
     runs-on: windows-latest
+    timeout-minutes: 30
     env:
       SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
 

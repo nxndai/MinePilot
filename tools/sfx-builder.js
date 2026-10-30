@@ -81,7 +81,26 @@ function makePayload(staging, payload, stub) {
   if (!fs.existsSync(tar)) throw new Error('未找到 Windows tar.exe，无法创建安装数据包。');
   fs.copyFileSync(stub, path.join(staging, 'Uninstall.exe'));
   rm(payload);
-  execFileSync(tar, ['-a', '-cf', payload, '-C', staging, '.'], { stdio: 'inherit', timeout: 300000 });
+  const args = ['-a', '-cf', payload, '-C', staging, '.'];
+  try {
+    execFileSync(tar, args, { encoding: 'utf8', timeout: 300000 });
+  } catch (err) {
+    // Some Windows Server images ship a tar.exe build that exits 1 without
+    // producing a usable ZIP. Retry with the PowerShell archiver so CI is not
+    // tied to a single tar implementation.
+    console.warn('tar 创建安装数据包失败，改用 PowerShell Compress-Archive。');
+    if (err.stdout) console.warn(String(err.stdout).trim());
+    if (err.stderr) console.warn(String(err.stderr).trim());
+    const quote = (value) => String(value).replace(/'/g, "''");
+    const command = [
+      "$ErrorActionPreference='Stop';",
+      `Compress-Archive -Path '${quote(path.join(staging, '*'))}' -DestinationPath '${quote(payload)}' -Force`,
+    ].join(' ');
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+      stdio: 'inherit',
+      timeout: 300000,
+    });
+  }
   if (!fs.existsSync(payload) || fs.statSync(payload).size < 1024) {
     throw new Error('安装数据包生成失败。');
   }
