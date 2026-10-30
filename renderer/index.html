@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://cdn.modrinth.com https://media.forgecdn.net https://edge.forgecdn.net; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' https: http://127.0.0.1:* http://localhost:*">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MinePilot</title>
+  <link rel="icon" type="image/x-icon" href="../assets/MinePilot.ico">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="titlebar">
+    <div class="tb-brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoTop" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#8ab8ff"/><stop offset="1" stop-color="#4d8df7"/>
+          </linearGradient>
+          <linearGradient id="logoLeft" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2f6fe0"/><stop offset="1" stop-color="#1b4ea8"/>
+          </linearGradient>
+          <linearGradient id="logoRight" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#255ec4"/><stop offset="1" stop-color="#123a83"/>
+          </linearGradient>
+        </defs>
+        <polygon points="16,3 28,9.5 16,16 4,9.5" fill="url(#logoTop)"/>
+        <polygon points="4,9.5 16,16 16,29 4,22.5" fill="url(#logoLeft)"/>
+        <polygon points="28,9.5 16,16 16,29 28,22.5" fill="url(#logoRight)"/>
+        <polygon points="16,3 28,9.5 16,16 4,9.5" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+      </svg>
+      <span class="tb-name">MinePilot</span>
+      <span class="tb-badge">PCL 风格</span>
+    </div>
+    <div class="tb-drag"></div>
+    <div class="tb-actions">
+      <button class="tb-btn" id="win-min" title="最小化">
+        <svg viewBox="0 0 12 12"><path d="M2.5 6.5h7" /></svg>
+      </button>
+      <button class="tb-btn" id="win-max" title="最大化">
+        <svg viewBox="0 0 12 12"><rect x="3" y="3" width="6" height="6" rx="1" /></svg>
+      </button>
+      <button class="tb-btn close" id="win-close" title="关闭">
+        <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside class="sidebar">
+      <div class="profile-card" id="profile-card" title="修改离线玩家名">
+        <div class="avatar" id="side-avatar"></div>
+        <div class="profile-text">
+          <div class="profile-name" id="side-name">Steve</div>
+          <div class="profile-mode"><span class="status-dot" id="side-mode-dot"></span><span id="side-mode">离线账户</span></div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="home">
+          <svg viewBox="0 0 20 20"><path d="M4 10.5V17h4.2v-4.3h3.6V17H16v-6.5"/><path d="M2.8 10.2 10 3.4l7.2 6.8"/></svg>
+          <span>启动</span>
+        </button>
+        <button class="nav-item" data-view="versions">
+          <svg viewBox="0 0 20 20"><path d="M10 2.8 17 6.4 10 10 3 6.4 10 2.8Z"/><path d="M3 10.2 10 13.8l7-3.6"/><path d="M3 13.8 10 17.4l7-3.6"/></svg>
+          <span>版本</span>
+        </button>
+        <button class="nav-item" data-view="download">
+          <svg viewBox="0 0 20 20"><path d="M10 3v9"/><path d="m6.2 8.8 3.8 3.8 3.8-3.8"/><path d="M3.2 15.8h13.6"/></svg>
+          <span>下载</span>
+        </button>
+        <button class="nav-item" data-view="mods">
+          <svg viewBox="0 0 20 20"><path d="M10 3 16 6.2v7.6L10 17l-6-3.2V6.2L10 3Z"/><path d="m4 6.2 6 3.2 6-3.2M10 9.4V17"/></svg>
+          <span>模组</span>
+        </button>
+        <button class="nav-item" data-view="skin">
+          <svg viewBox="0 0 20 20"><path d="M10 3.2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/><path d="M4.2 17c.5-3.2 2.7-5 5.8-5s5.3 1.8 5.8 5"/><path d="M6.2 10.2 3.6 12l1.5 2.7M13.8 10.2 16.4 12l-1.5 2.7"/></svg>
+          <span>皮肤</span>
+        </button>
+        <button class="nav-item" data-view="monitor">
+          <svg viewBox="0 0 20 20"><path d="M2.5 10h3l2-5 3.2 10 2.1-5h4.7"/></svg>
+          <span>监控</span>
+          <span class="nav-badge hidden" id="nav-monitor-badge"></span>
+        </button>
+        <button class="nav-item" data-view="diagnostics">
+          <svg viewBox="0 0 20 20"><path d="M10 2.8 18 16H2L10 2.8Z"/><path d="M10 8v4"/><path d="M10 14.3v.1"/></svg>
+          <span>诊断</span>
+          <span class="nav-badge hidden" id="nav-diagnostics-badge"></span>
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 20 20"><path d="M3 6h14M3 14h14"/><circle cx="7.5" cy="6" r="2"/><circle cx="12.5" cy="14" r="2"/></svg>
+          <span>设置</span>
+        </button>
+        <button class="nav-item" data-view="about">
+          <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5"/><path d="M10 6.2v.1"/></svg>
+          <span>关于</span>
+        </button>
+      </nav>
+
+      <div class="side-foot">
+        <button class="runtime-pill hidden" id="runtime-monitor-pill" data-goto="monitor">
+          <span class="runtime-pulse"></span>
+          <span class="runtime-pill-text"><strong>游戏运行中</strong><small id="runtime-pill-text">查看内存与 CPU</small></span>
+          <svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4"/></svg>
+        </button>
+        <div class="side-stat" id="java-stat">
+          <span class="status-dot warn"></span>
+          <span id="java-stat-text">正在检测 Java…</span>
+        </div>
+        <div class="side-version">MinePilot v1.8.0</div>
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <!-- ============ 启动 ============ -->
+      <section class="view active" id="view-home">
+        <div class="page-head">
+          <div>
+            <h1><span id="greeting">你好</span>，<span id="head-name">Steve</span></h1>
+            <p class="sub">准备好开始新的冒险了吗？</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip" id="chip-java"><span class="status-dot warn"></span><span id="chip-java-text">Java 检测中</span></div>
+            <div class="chip" id="chip-mem"><span class="status-dot"></span><span id="chip-mem-text">内存 4 GB</span></div>
+          </div>
+        </div>
+
+        <div class="hero-grid">
+          <div class="hero card">
+            <div class="hero-glow"></div>
+            <div class="hero-art" aria-hidden="true">
+              <svg viewBox="0 0 300 300">
+                <defs>
+                  <linearGradient id="cubeTop" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#9ac2ff"/><stop offset="1" stop-color="#5c93f5"/>
+                  </linearGradient>
+                  <linearGradient id="cubeLeft" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#3468cc"/><stop offset="1" stop-color="#1d418f"/>
+                  </linearGradient>
+                  <linearGradient id="cubeRight" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#2b5bb8"/><stop offset="1" stop-color="#152f6e"/>
+                  </linearGradient>
+                  <linearGradient id="cubeTop2" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#7de2c4"/><stop offset="1" stop-color="#2fae8a"/>
+                  </linearGradient>
+                  <linearGradient id="cubeLeft2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#219a78"/><stop offset="1" stop-color="#136a51"/>
+                  </linearGradient>
+                  <linearGradient id="cubeRight2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#1c8a6b"/><stop offset="1" stop-color="#0d5240"/>
+                  </linearGradient>
+                </defs>
+                <g class="cube cube-a" opacity=".95">
+                  <polygon points="150,78 218,112 150,146 82,112" fill="url(#cubeTop)"/>
+                  <polygon points="82,112 150,146 150,214 82,180" fill="url(#cubeLeft)"/>
+                  <polygon points="218,112 150,146 150,214 218,180" fill="url(#cubeRight)"/>
+                  <polygon points="150,78 218,112 150,146 82,112" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+                </g>
+                <g class="cube cube-b" opacity=".9">
+                  <polygon points="236,172 280,194 236,216 192,194" fill="url(#cubeTop2)"/>
+                  <polygon points="192,194 236,216 236,260 192,238" fill="url(#cubeLeft2)"/>
+                  <polygon points="280,194 236,216 236,260 280,238" fill="url(#cubeRight2)"/>
+                  <polygon points="236,172 280,194 236,216 192,194" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
+                </g>
+                <g class="cube cube-c" opacity=".75">
+                  <polygon points="58,196 92,213 58,230 24,213" fill="url(#cubeTop)"/>
+                  <polygon points="24,213 58,230 58,264 24,247" fill="url(#cubeLeft)"/>
+                  <polygon points="92,213 58,230 58,264 92,247" fill="url(#cubeRight)"/>
+                </g>
+              </svg>
+            </div>
+
+            <div class="hero-content">
+              <div class="eyebrow">已选择版本</div>
+              <div class="version-picker">
+                <select id="version-select" aria-label="选择版本"></select>
+                <button class="icon-btn" id="btn-refresh" title="刷新版本列表">
+                  <svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 4v4h-4"/></svg>
+                </button>
+              </div>
+              <div class="hero-meta" id="hero-meta">还没有安装任何版本</div>
+
+              <div class="hero-actions">
+                <button class="btn-launch" id="btn-launch">
+                  <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+                  <span class="launch-main">启动游戏</span>
+                  <span class="launch-sub" id="launch-sub">未选择版本</span>
+                </button>
+                <button class="btn ghost" id="btn-install-cta">安装新版本</button>
+              </div>
+              <div class="launch-hint" id="launch-hint"></div>
+            </div>
+          </div>
+
+          <div class="side-col">
+            <div class="card account-card">
+              <div class="avatar lg" id="home-avatar"></div>
+              <div class="account-name" id="account-name">Steve</div>
+              <div class="account-mode"><span class="status-dot" id="account-mode-dot"></span><span id="account-mode">离线账户 · 仅本地</span></div>
+              <button class="btn small ghost" id="btn-edit-account">管理账户</button>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-row"><span>已安装版本</span><strong id="stat-versions">0</strong></div>
+              <div class="stat-row"><span>Mod 数量</span><strong id="stat-mods">0</strong></div>
+              <div class="stat-row column"><span>游戏目录</span><span class="path" id="stat-path">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="quick-grid">
+          <button class="card quick" data-action="open-game">
+            <span class="quick-icon blue"><svg viewBox="0 0 20 20"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.6 2h6.4A1.5 1.5 0 0 1 17 8.5v7A1.5 1.5 0 0 1 15.5 17h-11A1.5 1.5 0 0 1 3 15.5v-9Z"/></svg></span>
+            <span class="quick-text"><strong>游戏目录</strong><small>打开 .minecraft</small></span>
+          </button>
+          <button class="card quick" data-action="open-mods">
+            <span class="quick-icon green"><svg viewBox="0 0 20 20"><path d="M10 3 16 6.2v7.6L10 17l-6-3.2V6.2L10 3Z"/><path d="m4 6.2 6 3.2 6-3.2M10 9.4V17"/></svg></span>
+            <span class="quick-text"><strong>Mods</strong><small id="quick-mods">管理模组</small></span>
+          </button>
+          <button class="card quick" data-action="show-log">
+            <span class="quick-icon violet"><svg viewBox="0 0 20 20"><path d="m4 6 4 4-4 4M10 14h6"/></svg></span>
+            <span class="quick-text"><strong>启动日志</strong><small>查看运行输出</small></span>
+          </button>
+        </div>
+
+        <div class="card tips">
+          <div class="tips-title">小贴士</div>
+          <div class="tips-list">
+            <div class="tip"><span>首次</span><p>第一次使用请前往「下载」页安装一个正式版；启动前会校验并自动补齐缺失或损坏的核心文件。</p></div>
+            <div class="tip"><span>内存</span><p>建议分配 4–8 GB；分配过大反而可能拖慢启动速度。</p></div>
+            <div class="tip"><span>正版</span><p>本启动器目前使用离线账户。支持正版 Minecraft，请前往官网购买。</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 版本 ============ -->
+      <section class="view" id="view-versions">
+        <div class="page-head">
+          <div>
+            <h1>版本管理</h1>
+            <p class="sub">已安装 <span id="versions-count">0</span> 个版本 · Fabric / Forge / NeoForge / Quilt 一键安装</p>
+          </div>
+          <button class="btn primary" data-goto="download">
+            <svg viewBox="0 0 20 20"><path d="M10 4v9M6 9l4 4 4-4"/></svg>安装新版本
+          </button>
+        </div>
+        <div id="version-list" class="list-stack"></div>
+        <div class="empty hidden" id="versions-empty">
+          <div class="empty-art">
+            <svg viewBox="0 0 120 120"><g opacity=".9"><polygon points="60,20 96,38 60,56 24,38" fill="#2c4f92"/><polygon points="24,38 60,56 60,94 24,76" fill="#1b3260"/><polygon points="96,38 60,56 60,94 96,76" fill="#152a52"/></g></svg>
+          </div>
+          <h2>还没有安装版本</h2>
+          <p>前往下载页安装一个 Minecraft 正式版，就可以开始游戏了。</p>
+          <button class="btn primary" data-goto="download">去下载</button>
+        </div>
+      </section>
+
+      <!-- ============ 下载 ============ -->
+      <section class="view" id="view-download">
+        <div class="page-head">
+          <div>
+            <h1>下载游戏</h1>
+            <p class="sub">从 Mojang 官方源安装原版 Minecraft，支持镜像加速</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip" id="dl-source-chip"><span class="status-dot"></span><span>BMCLAPI 镜像</span></div>
+          </div>
+        </div>
+
+
+        <div class="card online-offline-banner hidden" id="dl-offline-notice">
+          <div>
+            <strong>在线下载已关闭</strong>
+            <p>当前只读取本机已有的游戏文件。需要安装版本、下载模组/整合包或自动安装 Java 时，请先在「设置 → 下载」中勾选“在线下载”。</p>
+          </div>
+          <button class="btn small primary" id="btn-enable-online">去设置开启</button>
+        </div>
+
+        <div class="toolbar card">
+          <div class="segmented" id="dl-filter">
+            <button data-type="release" class="active">正式版</button>
+            <button data-type="snapshot">快照</button>
+            <button data-type="all">全部</button>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.2"/><path d="m13 13 4 4"/></svg>
+            <input id="dl-search" class="input" placeholder="搜索版本号，例如 1.20.1" autocomplete="off">
+          </div>
+          <button class="btn ghost small" id="btn-refresh-manifest">刷新列表</button>
+        </div>
+
+        <div id="dl-list" class="list-stack download-list"></div>
+        <div class="empty hidden" id="dl-empty">
+          <h2 id="dl-empty-title">没有匹配的版本</h2>
+          <p id="dl-empty-text">换个关键词试试，或刷新版本列表。</p>
+        </div>
+
+        <div class="install-bar card hidden" id="install-bar">
+          <div class="install-head">
+            <div class="install-title">
+              <strong id="ib-title">正在安装</strong>
+              <span id="ib-phase">准备中…</span>
+            </div>
+            <button class="btn ghost small" id="btn-cancel-install">取消安装</button>
+          </div>
+          <div class="progress"><div class="progress-fill" id="ib-fill"></div></div>
+          <div class="install-meta">
+            <span id="ib-percent">0%</span>
+            <span id="ib-speed"></span>
+            <span id="ib-files"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 模组 ============ -->
+      <section class="view" id="view-mods">
+        <div class="page-head">
+          <div>
+            <h1>模组与整合包</h1>
+            <p class="sub">勾选即可启用/禁用模组；拖入 .mrpack 或 .zip 导入整合包，也能把当前实例导出分享</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip"><span class="status-dot"></span><span id="mod-source-chip">数据源 Modrinth</span></div>
+          </div>
+        </div>
+
+        <div class="toolbar card mod-toolbar">
+          <div class="mod-target-wrap">
+            <span class="muted-sm">当前实例</span>
+            <select id="mod-target" class="input select" aria-label="选择目标版本"></select>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.2"/><path d="m13 13 4 4"/></svg>
+            <input id="mod-search" class="input" placeholder="搜索模组，例如 Sodium、JEI、Create" autocomplete="off">
+          </div>
+          <button class="btn primary small" id="btn-mod-search">搜索</button>
+          <button class="btn ghost small" id="btn-mod-open-mods">打开 mods</button>
+        </div>
+
+        <div class="card installed-card" id="installed-card">
+          <div class="installed-head">
+            <div>
+              <div class="installed-title">当前实例模组 <span class="badge gray" id="installed-count">0 个</span></div>
+              <div class="installed-sub" id="installed-sub">勾选复选框启用或禁用，不会移动 .jar 文件</div>
+            </div>
+            <div class="installed-actions">
+              <button class="btn ghost small" id="btn-installed-refresh">刷新</button>
+              <button class="btn ghost small" id="btn-installed-open">打开目录</button>
+            </div>
+          </div>
+          <div class="installed-list" id="installed-list"></div>
+          <div class="installed-empty" id="installed-empty">
+            <strong>还没有安装模组</strong>
+            <span>在下方搜索并安装，或把整合包拖到下面的导入区。</span>
+          </div>
+        </div>
+
+        <div class="card modpack-card" id="modpack-drop">
+          <div class="modpack-icon">PK</div>
+          <div class="modpack-copy">
+            <div class="modpack-title">整合包导入 / 导出 <span class="badge">拖拽 .mrpack / .zip</span></div>
+            <p>拖入整合包即可自动识别；导出会包含 mods、config、资源包、光影配置与 options.txt，不包含存档、日志和账户信息。</p>
+          </div>
+          <div class="modpack-actions">
+            <button class="btn primary small" id="btn-pack-import">导入整合包</button>
+            <button class="btn ghost small" id="btn-pack-export">导出当前实例</button>
+          </div>
+        </div>
+
+        <div class="install-bar card hidden" id="pack-progress-bar">
+          <div class="install-head">
+            <div class="install-title">
+              <strong id="pack-pb-title">正在处理整合包</strong>
+              <span id="pack-pb-phase">准备中…</span>
+            </div>
+            <button class="btn ghost small" id="btn-cancel-pack">取消</button>
+          </div>
+          <div class="progress"><div class="progress-fill" id="pack-pb-fill"></div></div>
+          <div class="install-meta">
+            <span id="pack-pb-percent">0%</span>
+            <span id="pack-pb-files"></span>
+          </div>
+        </div>
+
+        <div class="mod-filter-row">
+          <div class="segmented mod-source-tabs" id="mod-source-tabs">
+            <button class="active" data-mod-source="modrinth">Modrinth</button>
+            <button data-mod-source="curseforge">CurseForge</button>
+          </div>
+          <div class="mod-cats" id="mod-cats"></div>
+        </div>
+
+        <div class="mod-hint" id="mod-hint"></div>
+
+        <div id="mod-list" class="list-stack mod-list"></div>
+        <div class="empty hidden" id="mod-empty">
+          <h2 id="mod-empty-title">搜索模组</h2>
+          <p id="mod-empty-text">输入模组名称，或直接浏览当前版本的热门模组。</p>
+        </div>
+        <div class="mod-more hidden" id="mod-more-wrap">
+          <button class="btn ghost small" id="btn-mod-more">加载更多</button>
+        </div>
+        <div class="mod-foot muted-sm">
+          数据来自 <a href="https://modrinth.com" data-url="https://modrinth.com">Modrinth</a> 与
+          <a href="https://www.curseforge.com" data-url="https://www.curseforge.com">CurseForge</a>，请遵守各模组的许可证。
+        </div>
+
+        <div class="install-bar card hidden" id="mod-install-bar">
+          <div class="install-head">
+            <div class="install-title">
+              <strong id="mod-ib-title">正在安装模组</strong>
+              <span id="mod-ib-phase">准备中…</span>
+            </div>
+            <button class="btn ghost small" id="btn-cancel-mod">取消安装</button>
+          </div>
+          <div class="progress"><div class="progress-fill" id="mod-ib-fill"></div></div>
+          <div class="install-meta">
+            <span id="mod-ib-percent">0%</span>
+            <span id="mod-ib-files"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 皮肤 ============ -->
+      <section class="view" id="view-skin">
+        <div class="page-head skin-page-head">
+          <div>
+            <h1>角色工坊</h1>
+            <p class="sub">导入皮肤和披风，离线账户也能保存一套属于自己的本地形象。</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip"><span class="status-dot" id="skin-account-dot"></span><span id="skin-account-text">离线账户 · 本地形象</span></div>
+            <button class="btn small primary" id="btn-skin-import">导入皮肤 PNG</button>
+          </div>
+        </div>
+
+        <div class="skin-workbench">
+          <div class="card skin-stage-card">
+            <div class="skin-stage-head">
+              <div>
+                <span class="skin-kicker">LOCAL CHARACTER</span>
+                <h2 id="skin-active-name">还没有本地皮肤</h2>
+              </div>
+              <div class="skin-model-switch" role="group" aria-label="皮肤模型">
+                <button type="button" data-skin-model="classic" class="active">经典</button>
+                <button type="button" data-skin-model="slim">纤细</button>
+              </div>
+            </div>
+            <div class="skin-stage" id="skin-stage">
+              <div class="skin-stage-grid" aria-hidden="true"></div>
+              <canvas id="skin-preview" width="320" height="390" aria-label="皮肤预览"></canvas>
+              <div class="skin-stage-empty" id="skin-empty">
+                <span class="skin-empty-mark">+</span>
+                <strong>把第一套皮肤带进来</strong>
+                <p>支持 64×64、64×32 与 128×128 PNG</p>
+                <button class="btn small primary" id="btn-skin-empty-import">选择图片</button>
+              </div>
+              <div class="skin-floor" aria-hidden="true"></div>
+            </div>
+            <div class="skin-stage-actions">
+              <div class="skin-active-meta">
+                <strong id="skin-active-file">未选择皮肤</strong>
+                <span id="skin-active-detail">导入后会在启动器内即时预览</span>
+              </div>
+              <div class="skin-action-buttons">
+                <button class="btn small ghost" id="btn-skin-clear">不使用本地皮肤</button>
+                <button class="btn small" id="btn-skin-import-2">导入新皮肤</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="skin-side">
+            <div class="card skin-identity">
+              <div class="skin-identity-row">
+                <div class="avatar lg" id="skin-account-avatar"></div>
+                <div class="skin-identity-text">
+                  <strong id="skin-account-name">Steve</strong>
+                  <span id="skin-account-sub">离线账户 · 仅本地</span>
+                </div>
+              </div>
+              <div class="skin-id-line"><span>当前模型</span><strong id="skin-model-text">经典</strong></div>
+              <div class="skin-id-line"><span>存储位置</span><strong>本地图库</strong></div>
+              <p class="skin-note-small">本地皮肤只保存在 MinePilot 数据目录，不会上传。原版离线客户端默认不读取第三方皮肤；如需在游戏内显示，请配合皮肤模组使用。</p>
+            </div>
+
+            <div class="card skin-cape-card">
+              <div class="skin-cape-head">
+                <div>
+                  <span class="skin-kicker">CAPE</span>
+                  <h3>披风</h3>
+                </div>
+                <button class="mini-btn" id="btn-cape-import">导入</button>
+              </div>
+              <div class="skin-cape-stage" id="cape-stage">
+                <canvas id="cape-preview" width="240" height="142" aria-label="披风预览"></canvas>
+                <span class="skin-cape-empty" id="cape-empty">未选择披风</span>
+              </div>
+              <div class="skin-cape-meta">
+                <strong id="cape-active-name">未选择披风</strong>
+                <button class="mini-btn" id="btn-cape-clear">移除</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="skin-library-grid">
+          <div class="card skin-library-card">
+            <div class="skin-library-head">
+              <div><h3>皮肤库</h3><span id="skin-count">0 个</span></div>
+              <label class="btn ghost small" for="skin-file-input">+ 导入 PNG</label>
+              <input class="hidden" type="file" id="skin-file-input" accept="image/png">
+            </div>
+            <div class="skin-list" id="skin-list"></div>
+            <div class="skin-list-empty" id="skin-list-empty">还没有皮肤。导入一张 64×64 PNG 开始。</div>
+          </div>
+
+          <div class="card skin-library-card">
+            <div class="skin-library-head">
+              <div><h3>披风库</h3><span id="cape-count">0 个</span></div>
+              <label class="btn ghost small" for="cape-file-input">+ 导入披风</label>
+              <input class="hidden" type="file" id="cape-file-input" accept="image/png">
+            </div>
+            <div class="skin-list cape-list" id="cape-list"></div>
+            <div class="skin-list-empty" id="cape-list-empty">还没有披风。导入一张 64×32 PNG 开始。</div>
+          </div>
+        </div>
+
+        <div class="skin-info-strip">
+          <div><strong>离线可用</strong><span>无需登录 Microsoft 账户，本地图库随时切换。</span></div>
+          <div><strong>只改形象</strong><span>不上传图片、不修改游戏文件，删除图库即可恢复原状。</span></div>
+          <div><strong>PNG 校验</strong><span>自动检查尺寸与文件头，避免损坏的图片进入图库。</span></div>
+        </div>
+      </section>
+
+      <!-- ============ 运行监控 ============ -->
+      <section class="view" id="view-monitor">
+        <div class="page-head">
+          <div>
+            <h1>运行监控</h1>
+            <p class="sub">游戏启动后，实时查看 CPU、内存、运行时长与最新日志。</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip" id="monitor-status-chip"><span class="status-dot off"></span><span id="monitor-status-text">未运行</span></div>
+            <button class="btn small danger" id="btn-monitor-kill" disabled>结束进程</button>
+          </div>
+        </div>
+
+        <div class="card monitor-empty" id="monitor-empty">
+          <div class="monitor-empty-icon"><svg viewBox="0 0 32 32"><path d="M4 17h5l3-8 5 16 3.5-8H28"/></svg></div>
+          <h2 id="monitor-empty-title">游戏还没有启动</h2>
+          <p id="monitor-empty-text">从「启动」页进入游戏后，这里会显示实时资源占用与日志。启动器不会额外占用游戏进程资源。</p>
+          <button class="btn small primary" data-goto="home">回到启动页</button>
+        </div>
+
+        <div class="monitor-live hidden" id="monitor-live">
+          <div class="card monitor-hero">
+            <div class="monitor-hero-main">
+              <span class="skin-kicker">LIVE SESSION</span>
+              <h2 id="monitor-version">—</h2>
+              <div class="monitor-hero-meta">
+                <span id="monitor-player">玩家 —</span>
+                <span class="monitor-dot-sep"></span>
+                <span id="monitor-pid-label">PID —</span>
+                <span class="monitor-dot-sep"></span>
+                <span id="monitor-started">启动于 —</span>
+              </div>
+            </div>
+            <div class="monitor-uptime">
+              <span>运行时长</span>
+              <strong id="monitor-uptime">00:00:00</strong>
+            </div>
+          </div>
+
+          <div class="monitor-grid">
+            <div class="card monitor-metric">
+              <div class="monitor-metric-head"><span>CPU 使用率</span><strong id="monitor-cpu">0%</strong></div>
+              <canvas id="monitor-cpu-chart" width="360" height="90"></canvas>
+              <div class="monitor-metric-foot"><span id="monitor-cpu-total">累计 0 秒</span><span>按全系统核心归一化</span></div>
+            </div>
+            <div class="card monitor-metric">
+              <div class="monitor-metric-head"><span>内存占用</span><strong id="monitor-memory">0 MB</strong></div>
+              <div class="monitor-memory-bar"><div id="monitor-memory-fill"></div></div>
+              <div class="monitor-metric-foot"><span id="monitor-memory-detail">分配 0 MB</span><span id="monitor-memory-system">系统 —</span></div>
+            </div>
+            <div class="card monitor-metric compact">
+              <div class="monitor-metric-head"><span>线程数</span><strong id="monitor-threads">—</strong></div>
+              <p class="monitor-metric-note">Java 进程当前活动线程</p>
+            </div>
+            <div class="card monitor-metric compact">
+              <div class="monitor-metric-head"><span>日志文件</span><strong id="monitor-log-state">等待中</strong></div>
+              <button class="mini-btn monitor-open-log" id="btn-monitor-open-log">打开完整日志</button>
+            </div>
+          </div>
+
+          <div class="card monitor-log-card">
+            <div class="monitor-log-head">
+              <div><h3>最新日志</h3><span id="monitor-log-meta">等待游戏输出</span></div>
+              <div class="monitor-log-tools">
+                <button class="mini-btn" id="btn-monitor-refresh">刷新</button>
+                <button class="mini-btn" id="btn-monitor-log-copy">复制</button>
+              </div>
+            </div>
+            <pre class="monitor-log" id="monitor-log">启动游戏后，这里会显示最近的日志输出。</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 诊断 ============ -->
+      <section class="view" id="view-diagnostics">
+        <div class="page-head">
+          <div>
+            <h1>崩溃诊断</h1>
+            <p class="sub">用普通话解释游戏为什么退出，并把日志、系统信息和模组清单一键打包。</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip" id="diag-status-chip"><span class="status-dot off"></span><span id="diag-status-text">还没有诊断记录</span></div>
+            <button class="btn small ghost" id="btn-diag-open-folder">诊断目录</button>
+            <button class="btn small primary" id="btn-diag-export" disabled>导出报告</button>
+          </div>
+        </div>
+
+        <div class="card diag-empty" id="diag-empty">
+          <div class="diag-empty-mark"><svg viewBox="0 0 32 32"><path d="M16 5 28 26H4L16 5Z"/><path d="M16 13v6"/><path d="M16 22.5v.1"/></svg></div>
+          <h2>暂时没有崩溃记录</h2>
+          <p>游戏异常退出后，MinePilot 会自动分析退出代码、启动日志和 crash-reports，并在这里给出可能原因与处理建议。正常退出和手动结束进程不会生成崩溃报告。</p>
+          <button class="btn small ghost" data-goto="home">回到启动页</button>
+        </div>
+
+        <div class="diag-content hidden" id="diag-content">
+          <div class="card diag-hero" id="diag-hero">
+            <div class="diag-hero-main">
+              <div class="diag-eyebrow"><span class="diag-severity" id="diag-severity">需要处理</span><span id="diag-time">—</span></div>
+              <h2 id="diag-title">游戏异常退出</h2>
+              <p id="diag-summary">—</p>
+              <div class="diag-exit-grid">
+                <div><span>退出代码</span><strong id="diag-exit-code">—</strong></div>
+                <div><span>信号</span><strong id="diag-exit-signal">—</strong></div>
+                <div><span>运行时长</span><strong id="diag-duration">—</strong></div>
+                <div><span>版本</span><strong id="diag-version">—</strong></div>
+              </div>
+            </div>
+            <div class="diag-actions">
+              <button class="btn small primary" id="btn-diag-export-main">导出诊断报告</button>
+              <button class="btn small ghost" id="btn-diag-copy">复制结论</button>
+              <button class="btn small ghost" id="btn-diag-open-log">打开启动日志</button>
+            </div>
+          </div>
+
+          <div class="diag-grid">
+            <div class="card diag-card">
+              <div class="diag-card-head"><h3>可能原因</h3><span>按可信度排序</span></div>
+              <div id="diag-causes" class="diag-causes"></div>
+            </div>
+
+            <div class="card diag-card">
+              <div class="diag-card-head"><h3>可以这样处理</h3><span>从最容易的一步开始</span></div>
+              <ul class="diag-suggestions" id="diag-suggestions"></ul>
+            </div>
+          </div>
+
+          <div class="card diag-card">
+            <div class="diag-card-head"><h3>日志摘要</h3><span>已隐藏访问令牌</span></div>
+            <pre class="diag-log" id="diag-log">—</pre>
+          </div>
+
+          <details class="card diag-card diag-system">
+            <summary><span><strong>系统与 Java 信息</strong><small>导出报告会包含完整内容</small></span><span class="diag-chevron">展开</span></summary>
+            <pre id="diag-system">—</pre>
+          </details>
+
+          <div class="card diag-card">
+            <div class="diag-card-head"><h3>最近记录</h3><span>保留最近 12 次异常退出</span></div>
+            <div class="diag-history" id="diag-history"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 设置 ============ -->
+      <section class="view" id="view-settings">
+        <div class="page-head">
+          <div>
+            <h1>设置</h1>
+            <p class="sub">修改会立即保存到本地配置文件</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <div class="card setting-card wide">
+            <h3>语言</h3>
+            <div class="setting-row">
+              <div class="setting-label">启动器语言<small>切换后界面会刷新；游戏语言会跟随启动器</small></div>
+              <div class="setting-control">
+                <select id="set-language" class="input select">
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en-US">English</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>游戏</h3>
+            <div class="setting-row">
+              <div class="setting-label">游戏目录<small>Minecraft 数据所在位置</small></div>
+              <div class="setting-control">
+                <input id="set-gamedir" class="input path-input" readonly>
+                <button class="btn small" id="btn-browse-game">浏览</button>
+                <button class="btn small ghost" id="btn-open-game">打开</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Java 运行环境<small id="java-detail">用于启动游戏</small></div>
+              <div class="setting-control">
+                <select id="set-java" class="input select"></select>
+                <button class="btn small ghost" id="btn-detect-java">重新检测</button>
+                <button class="btn small ghost" id="btn-download-java">安装 Java</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">内存分配<small>推荐 4–8 GB</small></div>
+              <div class="setting-control range-control">
+                <input type="range" id="set-memory" min="1024" max="16384" step="512">
+                <span class="range-value" id="memory-value">4096 MB</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">版本隔离<small>每个版本使用独立的 mods、saves 与配置</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-isolation"><span></span></label>
+                <span class="muted-sm">推荐开启，避免模组冲突</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>启动</h3>
+            <div class="setting-row">
+              <div class="setting-label">游戏窗口<small>分辨率与全屏</small></div>
+              <div class="setting-control inline">
+                <input id="set-width" class="input tiny" type="number" min="640" step="10"> ×
+                <input id="set-height" class="input tiny" type="number" min="480" step="10">
+                <label class="switch"><input type="checkbox" id="set-fullscreen"><span></span></label>
+                <span class="muted-sm">全屏</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">JVM 参数<small>可选，例如 -XX:+UseG1GC</small></div>
+              <div class="setting-control">
+                <input id="set-jvm" class="input" placeholder="-XX:+UseG1GC">
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">启动后自动打开日志<small>方便排查问题</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-autolog"><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card wide appearance-setting">
+            <h3>外观</h3>
+            <div class="setting-row">
+              <div class="setting-label">主题<small>深色适合夜间，浅色适合明亮环境</small></div>
+              <div class="setting-control">
+                <select id="set-theme" class="input select">
+                  <option value="dark">深色</option>
+                  <option value="light">浅色</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">背景<small>纯色或本机图片，图片不会上传</small></div>
+              <div class="setting-control appearance-bg-control">
+                <select id="set-bg-type" class="input select">
+                  <option value="default">默认渐变</option>
+                  <option value="color">纯色</option>
+                  <option value="image">自定义图片</option>
+                </select>
+                <input id="set-bg-color" class="input color-input" type="color" title="背景颜色">
+                <label class="btn small ghost" for="bg-file-input" id="btn-pick-bg">选择图片</label>
+                <input class="hidden" type="file" id="bg-file-input" accept="image/png,image/jpeg,image/webp,image/gif">
+                <button class="btn small ghost hidden" id="btn-clear-bg">清除图片</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">界面缩放<small>适配高 DPI 屏幕与不同观看距离</small></div>
+              <div class="setting-control">
+                <select id="set-ui-scale" class="input select">
+                  <option value="0.9">90%</option>
+                  <option value="1">100%</option>
+                  <option value="1.1">110%</option>
+                  <option value="1.25">125%</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">界面动画<small>页面切换、卡片和状态过渡</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-animations"><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>下载</h3>
+            <div class="setting-row">
+              <div class="setting-label">在线下载<small>默认关闭。开启后才能安装游戏版本、下载模组/整合包和自动安装 Java；关闭时只使用本机已有文件。</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-online-downloads"><span></span></label>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">下载源<small>自动模式官方优先、镜像兜底；国内网络推荐 BMCLAPI 镜像优先</small></div>
+              <div class="setting-control">
+                <select id="set-download-source" class="input select">
+                  <option value="auto">自动选择（推荐）</option>
+                  <option value="bmclapi">BMCLAPI 镜像优先</option>
+                  <option value="official">仅官方源（不使用镜像）</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">并发下载数<small>1–32 线程；线程越多占用带宽越高</small></div>
+              <div class="setting-control range-control">
+                <input type="range" id="set-threads" min="1" max="32" step="1">
+                <span class="range-value" id="threads-value">16</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">下载资源文件<small>声音、语言等资源，约 100–300 MB</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-assets"><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card wide">
+            <h3>启动器更新</h3>
+            <div class="setting-row">
+              <div class="setting-label">更新源<small>HTTPS manifest 或 GitHub Releases 地址；留空则不联网检查</small></div>
+              <div class="setting-control update-feed-control">
+                <input id="set-update-feed" class="input" type="url" placeholder="https://example.com/minepilot/latest.json" spellcheck="false">
+                <button class="btn small primary" id="btn-save-update-feed">保存</button>
+                <button class="btn small ghost" id="btn-check-update">检查更新</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">启动时自动检查<small>只检查版本，不会自动下载或安装</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-auto-update"><span></span></label>
+              </div>
+            </div>
+            <div class="setting-row column-stat">
+              <div class="setting-label">当前状态<small id="update-status-text">还没有检查更新</small></div>
+              <div class="setting-control update-status-control">
+                <span class="update-version-chip" id="update-version-chip">v1.8.0</span>
+                <button class="btn small ghost hidden" id="btn-open-updates">下载目录</button>
+              </div>
+            </div>
+            <div class="update-progress-wrap hidden" id="update-progress-wrap">
+              <div class="update-progress-head"><span id="update-progress-label">准备下载</span><span id="update-progress-percent">0%</span></div>
+              <div class="progress"><span id="update-progress-bar" style="width:0%"></span></div>
+            </div>
+          </div>
+
+          <div class="card setting-card wide">
+            <h3>插件</h3>
+            <div class="plugin-warning">插件以页面权限运行，可以联网和读取启动器公开数据。只安装你信任来源的插件；插件 API 不提供账户令牌，也不能直接操作游戏文件。</div>
+            <div class="plugin-toolbar">
+              <button class="btn small primary" id="btn-plugin-install">安装插件 ZIP</button>
+              <button class="btn small ghost" id="btn-plugin-open-folder">打开插件目录</button>
+              <input type="file" id="plugin-file-input" class="hidden" accept=".zip,application/zip">
+              <span class="muted-sm" id="plugin-status-text">插件在 Web Worker 中运行</span>
+            </div>
+            <div class="plugin-list" id="plugin-list"></div>
+            <div class="plugin-command-head"><strong>插件命令</strong><span>由已启用插件注册</span></div>
+            <div class="plugin-commands" id="plugin-commands"></div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>模组来源</h3>
+            <div class="setting-row">
+              <div class="setting-label">CurseForge API Key<small>只保存在本机；填写后启用 CurseForge 搜索与下载</small></div>
+              <div class="setting-control">
+                <input id="set-curseforge-key" class="input" type="password" placeholder="粘贴 CurseForge API Key">
+                <button class="btn small primary" id="btn-save-cf-key">保存</button>
+                <button class="btn small ghost" data-url="https://console.curseforge.com/">申请</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">来源状态<small>Modrinth 无需配置，开箱可用</small></div>
+              <div class="setting-control">
+                <span class="muted-sm" id="cf-key-status">CurseForge 未配置</span>
+                <button class="btn small ghost hidden" id="btn-clear-cf-key">清除 Key</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>账户</h3>
+            <div class="setting-row">
+              <div class="setting-label">Microsoft 账户<small>正版登录，可进入正版服务器</small></div>
+              <div class="setting-control">
+                <span class="muted-sm" id="ms-account-status">未登录</span>
+                <button class="btn small primary" id="btn-ms-login">登录</button>
+                <button class="btn small ghost hidden" id="btn-ms-logout">退出</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">当前账户<small>启动游戏时使用</small></div>
+              <div class="setting-control">
+                <select class="input select" id="set-auth-mode">
+                  <option value="offline">离线账户</option>
+                  <option value="microsoft">Microsoft 账户</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">离线玩家名<small>3–16 位字母、数字或下划线</small></div>
+              <div class="setting-control">
+                <input id="set-username" class="input" maxlength="16" placeholder="Steve">
+                <button class="btn small primary" id="btn-save-name">保存</button>
+              </div>
+            </div>
+            <div class="setting-row column-stat">
+              <div class="setting-label">关于正版<small>离线账户无法加入正版验证服务器</small></div>
+              <button class="btn small ghost" data-url="https://www.minecraft.net/zh-hans/store/minecraft-java-bedrock-edition-pc">前往购买正版</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 关于 ============ -->
+      <section class="view" id="view-about">
+        <div class="about-hero card">
+          <div class="about-logo">
+            <img src="../assets/icon.png" alt="MinePilot 应用图标">
+          </div>
+          <div>
+            <h1>MinePilot</h1>
+            <p class="sub">一款 PCL 风格的 Minecraft 启动器 · 第三方独立实现</p>
+            <div class="about-tags"><span>v1.8.0</span><span>独立应用</span><span id="about-platform">桌面端</span><span>MIT License</span></div>
+          </div>
+        </div>
+
+        <div class="about-grid">
+          <div class="card about-card">
+            <h3>关于本项目</h3>
+            <p data-i18n-html="about.intro">MinePilot 是一个轻量的 Minecraft Java 版启动器，提供版本管理、原版下载、Fabric / Forge / NeoForge / Quilt 一键安装、启动前文件完整性校验与修复、模组依赖树检查、Microsoft 正版登录、版本隔离与日志查看。界面与交互参考了 <strong>Plain Craft Launcher (PCL)</strong> 的设计思路，但<strong>没有使用 PCL 的源代码</strong>，所有功能均为独立实现。PCL 采用自定义的《PCL 分发有限许可》，并非 OSI 开源项目；本项目未复制其代码或素材。</p>
+            <p>如果你喜欢 PCL，请支持原作者龙腾猫跃。</p>
+            <div class="link-row">
+              <button class="btn small ghost" data-url="https://github.com/Meloong-Git/PCL">PCL 源代码仓库</button>
+              <button class="btn small ghost" data-url="https://meloong.com/pcl">PCL 官网</button>
+              <button class="btn small ghost" data-url="https://meloong.com/">PCL 作者主页</button>
+              <button class="btn small ghost" data-url="https://afdian.com/a/LTCat">赞助 PCL 作者</button>
+            </div>
+          </div>
+
+          <div class="card about-card">
+            <h3>技术信息</h3>
+            <div class="kv"><span>Electron</span><strong id="about-electron">—</strong></div>
+            <div class="kv"><span>Node.js</span><strong id="about-node">—</strong></div>
+            <div class="kv"><span>数据目录</span><strong class="path" id="about-data">—</strong></div>
+            <div class="kv"><span>游戏目录</span><strong class="path" id="about-game">—</strong></div>
+            <div class="link-row">
+              <button class="btn small ghost" id="btn-open-data">打开数据目录</button>
+              <button class="btn small ghost" id="btn-open-logs">打开日志目录</button>
+            </div>
+          </div>
+
+          <div class="card about-card wide about-update-card">
+            <div class="about-update-head">
+              <div>
+                <h3>启动器更新</h3>
+                <p class="muted-sm" id="about-update-status">检查更新前不会连接任何服务器。</p>
+              </div>
+              <span class="update-version-chip" id="about-update-version">v1.8.0</span>
+            </div>
+            <div class="about-update-actions">
+              <button class="btn small ghost" id="about-check-update">检查更新</button>
+              <button class="btn small primary hidden" id="about-download-update">下载更新</button>
+              <button class="btn small primary hidden" id="about-install-update">安装并重启</button>
+              <button class="btn small ghost hidden" id="about-open-updates">打开下载目录</button>
+            </div>
+            <div class="update-progress-wrap hidden" id="about-update-progress-wrap">
+              <div class="update-progress-head"><span id="about-update-progress-label">准备下载</span><span id="about-update-progress-percent">0%</span></div>
+              <div class="progress"><span id="about-update-progress-bar" style="width:0%"></span></div>
+            </div>
+            <details class="about-update-notes hidden" id="about-update-notes">
+              <summary>查看更新说明</summary>
+              <pre id="about-update-notes-text"></pre>
+            </details>
+          </div>
+
+          <div class="card about-card wide">
+            <h3>许可与声明</h3>
+            <p>本项目以 MIT 许可证发布。Minecraft 是 Mojang Studios 的商标，本项目与 Mojang、Microsoft 及 PCL 作者均无隶属关系。启动器不会修改游戏文件，也不会绕过正版验证。</p>
+            <p class="muted-sm">请支持正版 Minecraft。使用离线账户仅限个人测试与离线环境。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+  <div id="modal-root"></div>
+
+  <div class="log-drawer" id="log-drawer">
+    <div class="log-head">
+      <div class="log-title"><strong>启动日志</strong><span id="log-title-text">尚未启动游戏</span></div>
+      <div class="log-tools">
+        <button class="mini-btn active" id="log-autoscroll">自动滚动</button>
+        <button class="mini-btn" id="log-clear">清空</button>
+        <button class="mini-btn" id="log-open-folder">日志目录</button>
+        <button class="mini-btn close" id="log-close">收起</button>
+      </div>
+    </div>
+    <pre id="log-content" class="log-content"></pre>
+  </div>
+
+  <script src="js/web-bridge.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/appearance.js"></script>
+  <script src="js/home.js"></script>
+  <script src="js/versions.js"></script>
+  <script src="js/download.js"></script>
+  <script src="js/mods.js"></script>
+  <script src="js/install-ui.js"></script>
+  <script src="js/account.js"></script>
+  <script src="js/skin.js"></script>
+  <script src="js/monitor.js"></script>
+  <script src="js/diagnostics.js"></script>
+  <script src="js/updater.js"></script>
+  <script src="js/plugins.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/about.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+

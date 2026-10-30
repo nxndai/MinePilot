@@ -1,0 +1,27 @@
+{
+  "name": "minepilot",
+  "productName": "MinePilot",
+  "version": "1.8.0",
+  "description": "MinePilot — 一款 PCL 风格的 Minecraft 启动器（第三方独立实现）",
+  "main": "main.js",
+  "author": "MinePilot Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nxndai/MinePilot.git"
+  },
+  "homepage": "https://github.com/nxndai/MinePilot#readme",
+  "bugs": {
+    "url": "https://github.com/nxndai/MinePilot/issues"
+  },
+  "scripts": {
+    "setup": "node tools/download-electron.js",
+    "start": "runtime\\electron\\electron.exe .",
+    "shot": "runtime\\electron\\electron.exe . --shot",
+    "package": "node tools/package-win.js",
+    "test": "node tests/language.test.js"
+  },
+  "devDependencies": {
+    "electron": "33.2.0"
+  }
+}

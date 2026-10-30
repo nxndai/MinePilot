@@ -1,0 +1,47 @@
+MinePilot
+=========
+
+Copyright (c) 2026 MinePilot contributors
+Licensed under the MIT License (see LICENSE).
+
+第三方说明
+----------
+
+1. 界面与交互设计参考了 Plain Craft Launcher (PCL)：
+   https://github.com/Meloong-Git/PCL
+   https://meloong.com/pcl
+
+   本项目不包含 PCL 的源代码。PCL 采用作者自定的《PCL 分发有限许可》
+   与《PCL 存储库合理使用指南》，并非 OSI 认证的开源许可证。本项目仅
+   借鉴其使用习惯与交互思路，并在界面中保留对原作者的署名与链接。
+
+2. Electron（MIT License）
+   https://github.com/electron/electron
+   项目内置的 runtime/electron/ 为 Electron 官方发行版，其许可文件位于
+   该目录下的 LICENSE 与 LICENSES.chromium.html。
+
+3. Minecraft 是 Mojang Studios 的商标。本项目不分发任何 Minecraft
+   游戏文件、材质、音效或 Mojang 的专有资源；游戏文件在用户安装版本时
+   从 Mojang 官方源下载。本项目与 Mojang、Microsoft 及 PCL 作者均无
+   隶属关系。
+
+4. 自动安装的 Java 运行环境来自 Eclipse Adoptium（Temurin），遵循其
+   各自的许可条款。
+
+5. 「模组」页通过 Modrinth 官方公开 API 搜索和下载模组：
+   https://modrinth.com
+   https://docs.modrinth.com/api
+   模组文件仍由 Modrinth 的 CDN 提供，各模组遵循其作者指定的许可证；
+   MinePilot 仅执行下载与安装，不重新分发这些文件。
+
+6. 下载加速使用 BMCLAPI 提供的 Minecraft 资源镜像：
+   https://bmclapi2.bangbang93.com/
+   镜像仅作为官方源的加速与回退，资源版权仍归 Mojang Studios；
+   可在「设置 → 下载源」中切换为官方源。
+
+7. 「模组」页的 CurseForge 来源使用 CurseForge 官方 API：
+   https://www.curseforge.com
+   https://docs.curseforge.com
+   CurseForge API 要求用户自行申请 API Key；MinePilot 不内置、不共享
+   API Key，也不重新分发 CurseForge 上的模组文件。是否允许第三方下载
+   由模组作者决定，遇到禁止下载的项目时会提示到 CurseForge 页面手动下载。

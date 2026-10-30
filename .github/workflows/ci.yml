@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Syntax and language tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check syntax
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check src/core/launcher.js
+          node --check src/core/settings.js
+          node --check renderer/js/i18n.js
+          node --check renderer/js/app.js
+          node --check renderer/js/settings.js
+
+      - name: Run tests
+        run: npm test
