@@ -67,7 +67,9 @@
     const number = $('#cleaner-percent');
     const fill = $('#cleaner-fill');
     const detail = $('#cleaner-detail');
-    const button = $('#btn-clean-memory');
+    const headText = $('#settings-memory-text');
+    const headDot = $('#settings-memory-dot');
+    const buttons = [$('#btn-clean-memory'), $('#btn-clean-memory-top')].filter(Boolean);
 
     if (number) {
       number.textContent = percentText(percent);
@@ -82,7 +84,9 @@
         ? '当前系统不支持内存清理'
         : `已用 ${memoryText(stats.usedMb)} / ${memoryText(stats.totalMb)}`;
     }
-    if (button) {
+    if (headText) headText.textContent = stats.supported === false ? '仅 Windows 可用' : `内存 ${percentText(percent)}`;
+    if (headDot) headDot.className = `status-dot${stats.supported === false ? ' off' : percent >= 80 ? ' warn' : ''}`;
+    for (const button of buttons) {
       button.disabled = cleanerBusy || stats.supported === false;
       button.title = stats.supported === false ? '仅 Windows 支持内存清理' : '';
     }
@@ -122,10 +126,10 @@
   async function cleanMemory() {
     if (cleanerBusy || !cleanerStats || cleanerStats.supported === false) return;
     cleanerBusy = true;
-    const button = $('#btn-clean-memory');
-    if (button) {
-      button.disabled = true;
-      button.textContent = '正在清理…';
+    const buttons = [$('#btn-clean-memory'), $('#btn-clean-memory-top')].filter(Boolean);
+    for (const item of buttons) {
+      item.disabled = true;
+      item.textContent = '正在清理…';
     }
     showCleanerResult('正在整理其他程序的内存工作集，请稍候…', 'busy');
     try {
@@ -151,9 +155,9 @@
       MP.toast('内存清理失败，请稍后重试', 'err', 5000);
     } finally {
       cleanerBusy = false;
-      if (button) {
-        button.textContent = '清理内存';
-        button.disabled = Boolean(cleanerStats && cleanerStats.supported === false);
+      for (const item of buttons) {
+        item.textContent = '清理内存';
+        item.disabled = Boolean(cleanerStats && cleanerStats.supported === false);
       }
     }
   }
@@ -389,6 +393,7 @@
     MP.on('#btn-detect-java', 'click', detectJava);
     MP.on('#btn-download-java', 'click', installJava);
     MP.on('#btn-clean-memory', 'click', cleanMemory);
+    MP.on('#btn-clean-memory-top', 'click', cleanMemory);
 
     MP.on('#set-java', 'change', (event) => {
       save({ javaPath: event.target.value });

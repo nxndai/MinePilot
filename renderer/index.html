@@ -680,6 +680,10 @@
             <h1>设置</h1>
             <p class="sub">修改会立即保存到本地配置文件</p>
           </div>
+          <div class="head-chips">
+            <div class="chip" id="settings-memory-chip"><span class="status-dot" id="settings-memory-dot"></span><span id="settings-memory-text">内存读取中</span></div>
+            <button class="btn small primary" id="btn-clean-memory-top" disabled>清理内存</button>
+          </div>
         </div>
 
         <div class="settings-grid">
@@ -783,6 +787,38 @@
               <div class="setting-control">
                 <label class="switch"><input type="checkbox" id="set-autolog"><span></span></label>
               </div>
+            </div>
+          </div>
+
+          <div class="card setting-card">
+            <h3>账户</h3>
+            <div class="setting-row">
+              <div class="setting-label">Microsoft 账户<small>正版登录，可进入正版服务器</small></div>
+              <div class="setting-control">
+                <span class="muted-sm" id="ms-account-status">未登录</span>
+                <button class="btn small primary" id="btn-ms-login">登录</button>
+                <button class="btn small ghost hidden" id="btn-ms-logout">退出</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">当前账户<small>启动游戏时使用</small></div>
+              <div class="setting-control">
+                <select class="input select" id="set-auth-mode">
+                  <option value="offline">离线账户</option>
+                  <option value="microsoft">Microsoft 账户</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">离线玩家名<small>3–16 位字母、数字或下划线</small></div>
+              <div class="setting-control">
+                <input id="set-username" class="input" maxlength="16" placeholder="Steve">
+                <button class="btn small primary" id="btn-save-name">保存</button>
+              </div>
+            </div>
+            <div class="setting-row column-stat">
+              <div class="setting-label">关于正版<small>离线账户无法加入正版验证服务器</small></div>
+              <button class="btn small ghost" data-url="https://www.minecraft.net/zh-hans/store/minecraft-java-bedrock-edition-pc">前往购买正版</button>
             </div>
           </div>
 
@@ -922,38 +958,6 @@
                 <span class="muted-sm" id="cf-key-status">CurseForge 未配置</span>
                 <button class="btn small ghost hidden" id="btn-clear-cf-key">清除 Key</button>
               </div>
-            </div>
-          </div>
-
-          <div class="card setting-card">
-            <h3>账户</h3>
-            <div class="setting-row">
-              <div class="setting-label">Microsoft 账户<small>正版登录，可进入正版服务器</small></div>
-              <div class="setting-control">
-                <span class="muted-sm" id="ms-account-status">未登录</span>
-                <button class="btn small primary" id="btn-ms-login">登录</button>
-                <button class="btn small ghost hidden" id="btn-ms-logout">退出</button>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">当前账户<small>启动游戏时使用</small></div>
-              <div class="setting-control">
-                <select class="input select" id="set-auth-mode">
-                  <option value="offline">离线账户</option>
-                  <option value="microsoft">Microsoft 账户</option>
-                </select>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">离线玩家名<small>3–16 位字母、数字或下划线</small></div>
-              <div class="setting-control">
-                <input id="set-username" class="input" maxlength="16" placeholder="Steve">
-                <button class="btn small primary" id="btn-save-name">保存</button>
-              </div>
-            </div>
-            <div class="setting-row column-stat">
-              <div class="setting-label">关于正版<small>离线账户无法加入正版验证服务器</small></div>
-              <button class="btn small ghost" data-url="https://www.minecraft.net/zh-hans/store/minecraft-java-bedrock-edition-pc">前往购买正版</button>
             </div>
           </div>
         </div>

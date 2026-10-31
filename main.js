@@ -1394,6 +1394,8 @@ async function captureScreenshot() {
               memoryOptimizeHint: text('memory-optimize-hint'),
               cleanerPercent: text('cleaner-percent'),
               cleanerDetail: text('cleaner-detail'),
+              cleanerHead: text('settings-memory-text'),
+              cleanerTopDisabled: q('btn-clean-memory-top') ? q('btn-clean-memory-top').disabled : null,
               cleanerResult: text('cleaner-result'),
               cleanerDisabled: q('btn-clean-memory') ? q('btn-clean-memory').disabled : null,
               cleanerCard: rect('memory-cleaner-card'),
