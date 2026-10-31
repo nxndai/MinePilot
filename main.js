@@ -1054,11 +1054,13 @@ function registerIpc() {
     memoryCleaning = memory.clean({
       skipPids,
       tempDir: path.join(config.root(), 'temp'),
+      allowSystemWide: !(currentLaunch && currentLaunch.pid),
+      elevate: process.env.MINEPILOT_NO_ELEVATE !== '1',
     });
     try {
       const result = await memoryCleaning;
       if (!result.ok) logger.warn('内存清理失败:', result.error);
-      else logger.info('内存清理完成:', `mode=${result.mode || 'unknown'}`, `trimmed=${result.trimmed}`, `freed=${result.freedMb}MB`);
+      else logger.info('内存清理完成:', `mode=${result.mode || 'unknown'}`, `deep=${result.deep === true}`, `admin=${result.admin === true}`, `trimmed=${result.trimmed}`, `freed=${result.freedMb}MB`);
       return result;
     } finally {
       memoryCleaning = null;

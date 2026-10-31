@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.8.1（2026-10-31 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.8.2（2026-10-31 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -13,7 +13,7 @@
 
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.8.1.exe`。
+- 下载 `MinePilot_Setup_1.8.2.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
@@ -41,19 +41,26 @@
 - 跨平台：平台相关逻辑集中到 `src/core/platform.js`，支持 Windows / macOS / Linux 的元数据 OS 规则、natives 分类与扩展名、默认游戏目录、Java 发现/Adoptium 安装包（Windows ZIP、macOS/Linux tar.gz）、系统打开命令和 Unix 进程组结束。当前仓库的安装包构建脚本仍只针对 Windows；macOS/Linux 需要在对应系统安装 Node/Electron 后自行打包，详见“跨平台说明”。
 - Java 管理：自动发现已安装的 Java；按游戏版本判断所需 Java 版本；可从 Eclipse Adoptium 自动下载 Temurin JRE（Windows 优先清华镜像，失败回退官方；macOS/Linux 使用官方 tar.gz），下载后校验 SHA256。
 - 内存管理：默认按物理内存自动推荐分配（2–12 GB），避免手动分配过大拖慢系统；也可以关闭自动分配后手动调整 1–16 GB。可选的 G1GC 垃圾回收调优会减少长时间游玩时的 GC 卡顿和内存抖动，仅在 Java 8 及以上启用；如果 JVM 参数里已经指定了其他 GC，会保留用户设置并跳过内置调优。检测到 32 位 Java 时会自动把堆限制为 1 GB，避免 JVM 无法启动。
-- 内存清理：设置页显示当前系统内存占用，可手动清理其他程序暂时不用的工作集，把物理内存腾给游戏；默认跳过系统关键进程、启动器自身和由启动器启动的游戏进程，不结束进程、不删除数据，并显示清理前后的占用变化。
+- 内存清理：设置页显示当前系统内存占用，可手动清理其他程序暂时不用的工作集，把物理内存腾给游戏。普通清理默认跳过系统关键进程、启动器自身和由启动器启动的游戏进程；深度清理会通过 UAC 请求管理员权限，调用 Windows 系统级工作集、待机列表和文件缓存整理，释放量更大，可能出现短暂卡顿。两种模式都不结束进程、不删除数据；检测到游戏正在运行时不会执行会波及游戏的全量系统整理。
 - 版本隔离：开启后每个版本使用独立的 `mods`、`saves`、`options.txt` 等数据目录，避免不同版本/模组互相污染；关闭时沿用全局游戏目录。若启动时提示 `EPERM`/“无法写入游戏数据目录”，请确认是从 Windows 桌面快捷方式直接启动（不要在聊天窗口、预览页或沙箱中启动），或把游戏目录换到普通可写文件夹，并将启动器与 Java 加入安全软件信任列表。也可以先双击 `repair-game-dirs.cmd`，为所有版本补齐 `logs`、`saves`、`crash-reports`、`downloads` 等目录。如果原目录存在但仍无法写入文件，启动器会自动改用程序目录下的 `data\game\<版本号>` 便携数据目录，并把原版本的模组、存档和配置复制过去。
 - 角色工坊：导入、预览、切换和删除本地皮肤与披风。支持 64×64、64×32、128×128 PNG 皮肤和 64×32、64×64、128×64 披风，自动校验 PNG 文件头与尺寸；经典/纤细模型可切换，预览会同时显示披风。皮肤库独立于账户系统，离线账户也能使用，本地皮肤头像会同步到侧栏和首页。图片只保存在本机，不上传。
 - 外观：深色/浅色主题、默认渐变/纯色/本机图片背景、90%–125% 界面缩放和动画开关。背景图片支持 PNG/JPG/WebP/GIF，限制 12 MB 并校验文件签名；缩放使用 Electron 原生缩放，高 DPI 屏幕下不会裁切内容，并遵循系统“减少动态效果”设置。
 - 界面语言：支持简体中文与 English 切换，设置在「设置 → 语言」中，切换后界面自动刷新；启动游戏时会同步修改该实例 `options.txt` 的 `lang` 值（中文 `zh_cn` / 英文 `en_us`），让游戏语言默认跟随启动器，同时保留分辨率、音量等其他游戏设置。
 - 运行监控：游戏启动后实时显示 CPU 使用率、内存占用/分配、累计 CPU 时间、线程数、PID、运行时长和最近 120 行日志，并绘制 CPU 走势。可以打开完整日志、复制日志或一键结束整个游戏进程树。
 - 下载管理：可选自动、BMCLAPI 镜像或官方源，并发线程数 1–32；自动模式官方优先并在失败时切换镜像，BMCLAPI 模式镜像优先并在失败时回退官方。**“在线下载”默认关闭**，开启后才能安装版本、下载模组/整合包和自动安装 Java；关闭时只使用本机已有文件。
-- 设置：界面语言、游戏目录、Java 路径、自动/手动内存分配、GC 调优、内存清理、窗口分辨率/全屏、JVM 参数、下载源、并发下载数、是否下载资源文件、在线下载开关、离线玩家名、版本隔离、CurseForge API Key、主题、背景、界面缩放和动画。
+- 设置：界面语言、游戏目录、Java 路径、自动/手动内存分配、GC 调优、内存清理（普通/深度）、窗口分辨率/全屏、JVM 参数、下载源、并发下载数、是否下载资源文件、在线下载开关、离线玩家名、版本隔离、CurseForge API Key、主题、背景、界面缩放和动画。
 - 启动日志抽屉、安装进度与速度显示、取消安装、删除版本、打开游戏/Mods/日志目录。
 
 > 本地皮肤只保存在 MinePilot 数据目录，原版离线客户端默认不会读取第三方皮肤。若要在游戏内显示，需要配合支持本地皮肤的模组或资源包；启动器内预览和头像不受影响。PCL 是源码公开但采用自定义《PCL 分发有限许可》的项目，不是 OSI 开源项目；MinePilot 未复制其代码或素材。
 
 ## 更新记录
+
+### 1.8.2
+
+- 重做内存清理：在基础工作集清理之外新增管理员深度清理，通过 Windows 系统级接口整理全系统工作集、待机列表和文件缓存，明显提高单次释放量。
+- 深度清理通过 UAC 请求管理员权限；用户取消时仍保留基础清理结果，不结束进程、不删除数据。
+- 检测到游戏正在运行时跳过会波及游戏进程的全量系统整理，只清理其他进程和系统缓存。
+- 设置页内存卡片增加深度清理说明，并更新版本号、重新生成 Windows 安装包与独立应用。
 
 ### 1.8.1
 
@@ -178,13 +185,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.8.1",
+  "version": "1.8.2",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.8.1.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.8.1.exe",
+      "name": "MinePilot_Setup_1.8.2.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.8.2.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -319,7 +326,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.8.1.exe`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.8.2.exe`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -327,7 +334,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.8.1.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.8.2.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 

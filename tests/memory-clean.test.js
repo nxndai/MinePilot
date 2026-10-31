@@ -15,6 +15,17 @@ const memory = require('../src/core/memory');
   assert.match(script, /\$skipPids = @\(123,456\)/, 'numeric skip PIDs should be included');
   assert.ok(script.includes("C:\\tmp\\a''b"), 'temp path should be single-quote escaped');
   assert.ok(script.includes('EmptyWorkingSet'), 'native cleanup API should be used');
+  assert.ok(script.includes('SeProfileSingleProcessPrivilege'), 'deep cleanup should enable the profile privilege');
+  assert.ok(script.includes('NtSetSystemInformation'), 'deep cleanup should use system memory-list commands');
+  assert.ok(script.includes('SetSystemFileCacheSize'), 'deep cleanup should trim the system file cache');
+  assert.ok(script.includes('$allowSystemWide = $true'), 'system-wide cleanup should be enabled by default');
+
+  const safeScript = memory.buildCleanScript([], 'C:\\tmp\\x', {
+    allowSystemWide: false,
+    resultPath: "C:\\tmp\\x\\a'b.json",
+  });
+  assert.ok(safeScript.includes('$allowSystemWide = $false'), 'system-wide cleanup should be optional');
+  assert.ok(safeScript.includes("a''b.json"), 'result path should be single-quote escaped');
 
   if (process.platform !== 'win32') {
     const result = await memory.clean();

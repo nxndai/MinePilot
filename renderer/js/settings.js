@@ -131,7 +131,7 @@
       item.disabled = true;
       item.textContent = '正在清理…';
     }
-    showCleanerResult('正在整理其他程序的内存工作集，请稍候…', 'busy');
+    showCleanerResult('正在整理其他程序的内存工作集；如需深度清理，请在系统弹窗中允许管理员权限…', 'busy');
     try {
       const result = await MP.api.invoke('memory:clean');
       if (!result || result.ok === false) throw new Error((result && result.error) || '内存清理失败');
@@ -141,7 +141,29 @@
       const beforePercent = Number(result.before && result.before.percent) || 0;
       const afterPercent = Number(result.after && result.after.percent) || 0;
       const trimmed = Number(result.trimmed) || 0;
-      if (freed > 0) {
+      const deep = result.deep === true;
+      const needsAdmin = result.needsAdmin === true;
+      if (deep) {
+        if (freed > 0) {
+          showCleanerResult(
+            `已深度清理 ${trimmed} 个进程，释放约 ${memoryText(freed)}（${percentText(beforePercent)} → ${percentText(afterPercent)}）。`,
+          );
+          MP.toast(`已深度释放约 ${memoryText(freed)} 内存`, 'ok');
+        } else {
+          showCleanerResult(`已深度清理 ${trimmed} 个进程；系统占用变化不明显，部分内存可能已被重新载入。`);
+          MP.toast('深度内存清理完成，占用变化不明显', 'ok');
+        }
+      } else if (needsAdmin) {
+        if (freed > 0) {
+          showCleanerResult(
+            `已清理 ${trimmed} 个进程，释放约 ${memoryText(freed)}（${percentText(beforePercent)} → ${percentText(afterPercent)}）；深度清理需要管理员权限。`,
+          );
+          MP.toast(`基础清理已释放约 ${memoryText(freed)} 内存`, 'ok');
+        } else {
+          showCleanerResult(`已清理 ${trimmed} 个进程；深度清理需要管理员权限，本次仅完成基础清理。`);
+          MP.toast('深度清理需要管理员权限', 'ok');
+        }
+      } else if (freed > 0) {
         showCleanerResult(
           `已清理 ${trimmed} 个进程，释放约 ${memoryText(freed)}（${percentText(beforePercent)} → ${percentText(afterPercent)}）。`,
         );
