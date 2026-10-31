@@ -848,6 +848,8 @@ const handlers = {
     try {
       const result = await launcher.launch(versionId, {
         javaPath: pick.java.path,
+        javaMajor: pick.java.major,
+        javaBits: pick.java.bits,
         onLog: (text) => {
           monitor.pushLog(text);
           broadcast('launch:log', { versionId, text });

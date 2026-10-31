@@ -14,17 +14,31 @@ const ALLOWED_KEYS = [
   'keepLauncherOpen', 'authMode', 'versionIsolation', 'gameDataDir',
   'curseforgeApiKey', 'downloadSource', 'theme', 'backgroundType',
   'backgroundColor', 'uiScale', 'animations', 'updateFeedUrl', 'autoCheckUpdates',
-  'onlineDownloads', 'language',
+  'onlineDownloads', 'language', 'memoryAuto', 'memoryOptimize',
 ];
 
 function defaultGameDir() {
   return platform.defaultGameDir();
 }
 
+function recommendedMemory(totalMemoryMb) {
+  const totalMb = Number(totalMemoryMb) || Math.floor(os.totalmem() / 1048576);
+  let value;
+  if (totalMb <= 4096) value = Math.floor(totalMb * 0.5);
+  else if (totalMb <= 6144) value = 3072;
+  else if (totalMb <= 8192) value = 4096;
+  else if (totalMb <= 12288) value = 6144;
+  else if (totalMb <= 16384) value = 8192;
+  else if (totalMb <= 24576) value = 10240;
+  else value = 12288;
+  // 给系统和其他程序留出空间；低内存机器仍保证至少 2 GB。
+  value = Math.min(value, Math.floor(totalMb * 0.6));
+  value = Math.max(2048, Math.min(12288, value));
+  return Math.floor(value / 512) * 512;
+}
+
 function defaultMemory() {
-  const totalMb = Math.floor(os.totalmem() / 1048576);
-  const half = Math.floor(totalMb / 2 / 1024) * 1024;
-  return Math.max(2048, Math.min(8192, half));
+  return recommendedMemory();
 }
 
 function defaults() {
@@ -33,6 +47,8 @@ function defaults() {
     gameDataDir: '',
     javaPath: '',
     memoryMb: defaultMemory(),
+    memoryAuto: true,
+    memoryOptimize: true,
     fullscreen: false,
     width: 1280,
     height: 720,
@@ -105,6 +121,8 @@ function sanitize(patch, base) {
       case 'animations':
       case 'autoCheckUpdates':
       case 'onlineDownloads':
+      case 'memoryAuto':
+      case 'memoryOptimize':
         value = Boolean(value);
         break;
       case 'language':
@@ -156,6 +174,8 @@ function sanitize(patch, base) {
     && !Object.prototype.hasOwnProperty.call(patch, 'downloadSource')) {
     next.downloadSource = next.useMirror ? 'auto' : 'official';
   }
+  delete next.totalMemoryMb;
+  delete next.recommendedMemoryMb;
   return next;
 }
 
@@ -188,7 +208,11 @@ function save() {
 
 function get() {
   const data = load();
-  return Object.assign({}, data, { lastPlayed: Object.assign({}, data.lastPlayed) });
+  return Object.assign({}, data, {
+    lastPlayed: Object.assign({}, data.lastPlayed),
+    totalMemoryMb: Math.floor(os.totalmem() / 1048576),
+    recommendedMemoryMb: recommendedMemory(),
+  });
 }
 
 function update(patch) {
@@ -202,6 +226,7 @@ module.exports = {
   get,
   update,
   defaults,
+  recommendedMemory,
   gameDir: () => get().gameDir,
   dataDir: () => config.root(),
 };

@@ -715,10 +715,24 @@
               </div>
             </div>
             <div class="setting-row">
-              <div class="setting-label">内存分配<small>推荐 4–8 GB</small></div>
+              <div class="setting-label">自动分配内存<small>按系统内存推荐，避免分配过大</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-memory-auto"><span></span></label>
+                <span class="muted-sm" id="memory-auto-hint">推荐开启</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">游戏内存<small id="memory-total-hint">系统内存 —</small></div>
               <div class="setting-control range-control">
                 <input type="range" id="set-memory" min="1024" max="16384" step="512">
                 <span class="range-value" id="memory-value">4096 MB</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">内存优化<small>G1GC 调优，减少卡顿和内存抖动</small></div>
+              <div class="setting-control">
+                <label class="switch"><input type="checkbox" id="set-memory-optimize"><span></span></label>
+                <span class="muted-sm" id="memory-optimize-hint">推荐开启（Java 8+）</span>
               </div>
             </div>
             <div class="setting-row">

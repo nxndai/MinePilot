@@ -166,6 +166,7 @@ function inspect(exe) {
   const version = match[1];
   const major = version.startsWith('1.') ? parseInt(version.split('.')[1], 10) : parseInt(version.split('.')[0], 10);
   if (!Number.isFinite(major)) return null;
+  const bits = /64-Bit/i.test(text) ? 64 : (/32-Bit/i.test(text) ? 32 : 0);
 
   let vendor = 'Java';
   if (/temurin|adoptium|adoptopenjdk/i.test(text)) vendor = 'Eclipse Temurin';
@@ -181,7 +182,8 @@ function inspect(exe) {
     major,
     version,
     vendor,
-    arch: stat.size > 0 ? (process.arch === 'x64' ? '64 位' : process.arch) : '',
+    bits,
+    arch: bits ? `${bits} 位` : (stat.size > 0 ? (process.arch === 'x64' ? '64 位' : process.arch) : ''),
     modified: stat.mtimeMs,
   };
   inspected.set(exe, { at: Date.now(), info });

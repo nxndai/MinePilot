@@ -902,6 +902,8 @@ function registerIpc() {
     try {
       const result = await launcher.launch(versionId, {
         javaPath: pick.java.path,
+        javaMajor: pick.java.major,
+        javaBits: pick.java.bits,
         onLog: (text) => {
           monitor.pushLog(text);
           if (win && !win.isDestroyed()) win.webContents.send('launch:log', { versionId, text });
@@ -1354,6 +1356,14 @@ async function captureScreenshot() {
               navSettings: document.querySelector('.nav-item[data-view="settings"] span') ? document.querySelector('.nav-item[data-view="settings"] span').textContent.trim() : null,
               languageSelect: q('set-language') ? q('set-language').value : null,
               pageTitle: document.querySelector('#view-home h1') ? document.querySelector('#view-home h1').textContent.trim() : null,
+              memoryAuto: q('set-memory-auto') ? q('set-memory-auto').checked : null,
+              memoryDisabled: q('set-memory') ? q('set-memory').disabled : null,
+              memoryValue: q('set-memory') ? Number(q('set-memory').value) : null,
+              memoryLabel: text('memory-value'),
+              memoryAutoHint: text('memory-auto-hint'),
+              memoryTotalHint: text('memory-total-hint'),
+              memoryOptimize: q('set-memory-optimize') ? q('set-memory-optimize').checked : null,
+              memoryOptimizeHint: text('memory-optimize-hint'),
               updateStatus: text('update-status-text'),
               pluginRows: document.querySelectorAll('#plugin-list .plugin-row').length,
               pluginCommands: document.querySelectorAll('#plugin-commands .plugin-command').length,

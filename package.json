@@ -19,7 +19,7 @@
     "start": "runtime\\electron\\electron.exe .",
     "shot": "runtime\\electron\\electron.exe . --shot",
     "package": "node tools/package-win.js",
-    "test": "node tests/language.test.js"
+    "test": "node tests/language.test.js && node tests/memory.test.js"
   },
   "devDependencies": {
     "electron": "33.2.0"

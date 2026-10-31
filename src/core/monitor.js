@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const fs = require('fs');
 const os = require('os');
@@ -21,6 +21,7 @@ function stripAnsi(text) {
 
 function attach(launch) {
   if (!launch || !launch.process || !launch.pid) return null;
+  const s = settings.get();
   session = {
     process: launch.process,
     pid: Number(launch.pid),
@@ -29,7 +30,9 @@ function attach(launch) {
     startedAt: Date.now(),
     logPath: launch.logPath || '',
     gameDir: launch.gameDir || '',
-    memoryMb: Math.max(0, Number(launch.memoryMb) || settings.get().memoryMb || 0),
+    memoryMb: Math.max(0, Number(launch.memoryMb)
+      || (s.memoryAuto !== false ? s.recommendedMemoryMb : s.memoryMb)
+      || 0),
     portable: Boolean(launch.portable),
     logBuffer: '',
     lastCpuMs: null,

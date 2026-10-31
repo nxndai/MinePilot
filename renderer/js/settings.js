@@ -17,7 +17,40 @@
 
   function memoryText(mb) {
     const value = Number(mb) || 0;
-    return `${value} MB`;
+    if (value < 1024) return `${value} MB`;
+    return value % 1024 === 0 ? `${value / 1024} GB` : `${(value / 1024).toFixed(1)} GB`;
+  }
+
+  function renderMemory(settings) {
+    const auto = settings.memoryAuto !== false;
+    const recommended = Number(settings.recommendedMemoryMb) || Number(settings.memoryMb) || 0;
+    const value = auto ? recommended : Number(settings.memoryMb) || recommended;
+    const slider = $('#set-memory');
+    const autoSwitch = $('#set-memory-auto');
+    const optimizeSwitch = $('#set-memory-optimize');
+    const totalHint = $('#memory-total-hint');
+
+    if (autoSwitch) autoSwitch.checked = auto;
+    if (optimizeSwitch) optimizeSwitch.checked = settings.memoryOptimize !== false;
+    if (slider) {
+      slider.disabled = auto;
+      slider.value = value;
+      setRangeFill(slider, 1024, 16384, value);
+    }
+    if ($('#memory-value')) {
+      $('#memory-value').textContent = `${auto ? '自动' : '手动'} · ${memoryText(value)}`;
+    }
+    if ($('#memory-auto-hint')) {
+      $('#memory-auto-hint').textContent = auto ? '由启动器自动选择合适的值' : '使用下方手动设置的值';
+    }
+    if (totalHint) {
+      totalHint.textContent = `系统内存 ${memoryText(settings.totalMemoryMb)} · 推荐 ${memoryText(recommended)}`;
+    }
+    if ($('#memory-optimize-hint')) {
+      $('#memory-optimize-hint').textContent = settings.memoryOptimize !== false
+        ? '已开启，适用于 Java 8 及以上'
+        : '已关闭，使用游戏默认 GC';
+    }
   }
 
   async function save(patch, options) {
@@ -70,11 +103,7 @@
       $('#set-gamedir').value = settings.gameDir;
       $('#set-gamedir').title = settings.gameDir;
     }
-    if ($('#set-memory')) {
-      $('#set-memory').value = settings.memoryMb;
-      setRangeFill($('#set-memory'), 1024, 16384, settings.memoryMb);
-    }
-    if ($('#memory-value')) $('#memory-value').textContent = memoryText(settings.memoryMb);
+    renderMemory(settings);
 
     if ($('#set-width')) $('#set-width').value = settings.width;
     if ($('#set-height')) $('#set-height').value = settings.height;
@@ -260,8 +289,27 @@
       MP.toast('Java 设置已保存', 'ok');
     });
 
-    bindRange($('#set-memory'), 1024, 16384, (value) => save({ memoryMb: value }), (value) => {
-      if ($('#memory-value')) $('#memory-value').textContent = memoryText(value);
+    MP.on('#set-memory-auto', 'change', async (event) => {
+      const auto = event.target.checked;
+      const recommended = Number(MP.state.settings.recommendedMemoryMb)
+        || Number(MP.state.settings.memoryMb)
+        || 4096;
+      await save(auto ? { memoryAuto: true } : { memoryAuto: false, memoryMb: recommended });
+      render();
+      MP.toast(auto ? '已启用自动内存分配' : '已改用手动内存分配', 'ok');
+    });
+
+    bindRange($('#set-memory'), 1024, 16384, (value) => {
+      save({ memoryAuto: false, memoryMb: value }).then(render);
+    }, (value) => {
+      if ($('#memory-value')) $('#memory-value').textContent = `手动 · ${memoryText(value)}`;
+    });
+
+    MP.on('#set-memory-optimize', 'change', async (event) => {
+      const enabled = event.target.checked;
+      await save({ memoryOptimize: enabled });
+      render();
+      MP.toast(enabled ? '已启用内存优化' : '已关闭内存优化', 'ok');
     });
 
     bindRange($('#set-threads'), 1, 24, (value) => save({ downloadThreads: value }), (value) => {

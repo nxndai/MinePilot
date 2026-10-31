@@ -27,6 +27,13 @@
     return value % 1024 === 0 ? `${value / 1024} GB` : `${(value / 1024).toFixed(1)} GB`;
   }
 
+  function memoryOf(settings) {
+    if (!settings) return 0;
+    return settings.memoryAuto !== false
+      ? Number(settings.recommendedMemoryMb) || Number(settings.memoryMb) || 0
+      : Number(settings.memoryMb) || 0;
+  }
+
   function setHint(text, isError) {
     const hint = $('#launch-hint');
     if (!hint) return;
@@ -78,7 +85,7 @@
     const javaLabel = bestJava
       ? `Java ${bestJava.major}`
       : `需要 Java ${version.requiredJava}`;
-    sub.textContent = `${javaLabel} · ${memoryText(MP.state.settings && MP.state.settings.memoryMb)} 内存${needsRepair ? ' · 启动前补全文件' : ''}`;
+    sub.textContent = `${javaLabel} · ${memoryText(memoryOf(MP.state.settings))} 内存${needsRepair ? ' · 启动前补全文件' : ''}`;
   }
 
   function renderSelect() {
@@ -153,7 +160,7 @@
     MP.setAvatar($('#side-avatar'), name);
     MP.setAvatar($('#home-avatar'), name);
 
-    if ($('#chip-mem-text')) $('#chip-mem-text').textContent = `分配内存 ${memoryText(settings.memoryMb)}`;
+    if ($('#chip-mem-text')) $('#chip-mem-text').textContent = `分配内存 ${memoryText(memoryOf(settings))}`;
     const selected = findVersion(MP.state.selectedVersion);
     const shownGameDir = selected && selected.gameDir ? selected.gameDir : settings.gameDir;
     if ($('#stat-path')) {

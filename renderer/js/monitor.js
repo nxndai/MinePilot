@@ -272,7 +272,11 @@
         uptimeMs: 0,
         cpuPercent: 0,
         memoryMb: 0,
-        memoryAllocatedMb: (MP.state.settings && MP.state.settings.memoryMb) || 0,
+        memoryAllocatedMb: Number(result.memoryMb)
+          || (MP.state.settings && MP.state.settings.memoryAuto !== false
+            ? MP.state.settings.recommendedMemoryMb
+            : MP.state.settings && MP.state.settings.memoryMb)
+          || 0,
         memorySystemMb: 0,
         logPath: result.logPath || '',
       };

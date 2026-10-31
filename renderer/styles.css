@@ -1877,6 +1877,15 @@ select option {
   transform: scale(1.12);
 }
 
+.range-control input[type="range"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.range-control input[type="range"]:disabled::-webkit-slider-thumb {
+  transform: none;
+}
+
 .range-value {
   min-width: 72px;
   text-align: right;

@@ -18,6 +18,48 @@ const platform = require('./platform');
 const LAUNCHER_NAME = 'MinePilot';
 const LAUNCHER_VERSION = '1.8.0';
 
+function effectiveMemoryMb(value, recommended, javaBits) {
+  let memory;
+  if (!value || value.memoryAuto !== false) {
+    memory = Number(recommended) || settings.recommendedMemory();
+  } else {
+    memory = Math.max(512, Math.min(65536, parseInt(value.memoryMb, 10) || settings.recommendedMemory()));
+  }
+  // 32 位 Java 的可用堆通常不到 1.5 GB，分配过大将无法创建 JVM。
+  if (Number(javaBits) === 32) memory = Math.min(memory, 1024);
+  return memory;
+}
+
+// G1GC tuning based on the widely used Aikar-style flags. These only change
+// garbage-collection behavior; they do not alter game files or authentication.
+function memoryArgs(enabled, javaMajor) {
+  if (!enabled || Number(javaMajor) < 8) return [];
+  return [
+    '-XX:+UseG1GC',
+    '-XX:+ParallelRefProcEnabled',
+    '-XX:MaxGCPauseMillis=200',
+    '-XX:+UnlockExperimentalVMOptions',
+    '-XX:+DisableExplicitGC',
+    '-XX:G1NewSizePercent=30',
+    '-XX:G1MaxNewSizePercent=40',
+    '-XX:G1HeapRegionSize=8M',
+    '-XX:G1ReservePercent=20',
+    '-XX:G1HeapWastePercent=5',
+    '-XX:G1MixedGCCountTarget=4',
+    '-XX:InitiatingHeapOccupancyPercent=15',
+    '-XX:G1MixedGCLiveThresholdPercent=90',
+    '-XX:G1RSetUpdatingPauseTimePercent=5',
+    '-XX:SurvivorRatio=32',
+    '-XX:+PerfDisableSharedMem',
+    '-XX:MaxTenuringThreshold=1',
+  ];
+}
+
+function formatMemory(mb) {
+  const value = Number(mb) || 0;
+  return value % 1024 === 0 ? `${value / 1024} GB` : `${(value / 1024).toFixed(1)} GB`;
+}
+
 function nativesKey(library) {
   return platform.nativesKey(library) || null;
 }
@@ -318,7 +360,7 @@ function applyGameLanguage(gameDir, language, onLog) {
 }
 
 async function launch(versionId, options = {}) {
-  const { javaPath, onLog = null, onExit = null, onProgress = null } = options;
+  const { javaPath, javaMajor = 0, javaBits = 0, onLog = null, onExit = null, onProgress = null } = options;
   const s = settings.get();
   const baseGameDir = s.gameDir;
   const isolated = versions.isolateFor(baseGameDir, versionId, s.versionIsolation);
@@ -377,7 +419,24 @@ async function launch(versionId, options = {}) {
   }
 
   const log = (text) => { if (onLog) onLog(text); };
+  const recommendedMemory = settings.recommendedMemory();
+  const desiredMemory = effectiveMemoryMb(s, recommendedMemory);
+  const memoryMb = effectiveMemoryMb(s, recommendedMemory, javaBits);
+  const autoMemory = s.memoryAuto !== false;
+  const userJvmArgs = s.jvmArgs && s.jvmArgs.trim() ? mojang.splitArgs(s.jvmArgs) : [];
+  const hasGcChoice = userJvmArgs.some((arg) => /^-XX:\+Use[A-Za-z0-9]+GC$/.test(arg));
+  const optimizeMemory = s.memoryOptimize !== false && Number(javaMajor) >= 8 && !hasGcChoice;
   log(`[MinePilot] 正在准备启动 ${versionId} ...\n`);
+  log(`[MinePilot] 内存：${formatMemory(memoryMb)}（${autoMemory ? '自动' : '手动'}）`
+    + `${optimizeMemory ? ' · G1GC 优化已启用' : ''}。\n`);
+  if (Number(javaBits) === 32 && memoryMb < desiredMemory) {
+    log(`[MinePilot] 检测到 32 位 Java，已将内存限制为 ${formatMemory(memoryMb)}。\n`);
+  }
+  if (s.memoryOptimize !== false && hasGcChoice) {
+    log('[MinePilot] 已保留自定义 GC 参数，跳过内置 G1GC 优化。\n');
+  } else if (s.memoryOptimize !== false && Number(javaMajor) > 0 && Number(javaMajor) < 8) {
+    log(`[MinePilot] 当前 Java ${javaMajor} 低于 8，已跳过 G1GC 内存优化。\n`);
+  }
   applyGameLanguage(gameDir, s.language, log);
   log(s.onlineDownloads
     ? '[MinePilot] 正在校验核心库与资源文件，缺失或损坏的文件会自动补全…\n'
@@ -430,8 +489,9 @@ async function launch(versionId, options = {}) {
   };
 
   const jvm = [];
-  jvm.push(`-Xmx${s.memoryMb}M`);
-  jvm.push(`-Xms${Math.min(s.memoryMb, 2048)}M`);
+  jvm.push(`-Xmx${memoryMb}M`);
+  jvm.push(`-Xms${Math.min(memoryMb, 2048)}M`);
+  if (optimizeMemory) jvm.push(...memoryArgs(true, javaMajor));
   jvm.push(`-Dminecraft.launcher.brand=${LAUNCHER_NAME}`);
   jvm.push(`-Dminecraft.launcher.version=${LAUNCHER_VERSION}`);
   jvm.push('-Dlog4j2.formatMsgNoLookups=true');
@@ -443,8 +503,8 @@ async function launch(versionId, options = {}) {
       jvm.push(`-Dlog4j.configurationFile=${logConfig}`);
     }
   }
-  if (s.jvmArgs && s.jvmArgs.trim()) {
-    jvm.push(...mojang.splitArgs(s.jvmArgs));
+  if (userJvmArgs.length) {
+    jvm.push(...userJvmArgs);
   }
 
   const versionJvm = mojang.expandArguments(meta.jvmArgs, features)
@@ -557,6 +617,9 @@ async function launch(versionId, options = {}) {
       versionId,
       javaPath: javaExe,
       player: profile.name,
+      memoryMb,
+      memoryMode: autoMemory ? 'auto' : 'manual',
+      memoryOptimized: optimizeMemory,
     }, info));
   };
 
@@ -581,6 +644,9 @@ async function launch(versionId, options = {}) {
     java: javaExe,
     gameDir,
     portable,
+    memoryMb,
+    memoryMode: autoMemory ? 'auto' : 'manual',
+    memoryOptimized: optimizeMemory,
     integrity: integrityResult,
     process: child,
   };
@@ -613,4 +679,12 @@ function quoteForLog(value) {
   return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
-module.exports = { launch, buildClasspath, prepareNatives, applyGameLanguage, gameLanguageCode };
+module.exports = {
+  launch,
+  buildClasspath,
+  prepareNatives,
+  applyGameLanguage,
+  gameLanguageCode,
+  effectiveMemoryMb,
+  memoryArgs,
+};

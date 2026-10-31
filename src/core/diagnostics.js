@@ -437,7 +437,9 @@ function buildSystemInfo(extra = {}) {
   const cpus = os.cpus() || [];
   const selected = {
     gameDir: s.gameDir,
-    memoryMb: s.memoryMb,
+    memoryMb: s.memoryAuto !== false ? settings.recommendedMemory() : s.memoryMb,
+    memoryAuto: s.memoryAuto !== false,
+    memoryOptimize: s.memoryOptimize !== false,
     width: s.width,
     height: s.height,
     fullscreen: s.fullscreen,
