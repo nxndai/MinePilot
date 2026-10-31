@@ -95,6 +95,7 @@ const microsoft = require('./src/core/microsoft');
 const skinmanager = require('./src/core/skinmanager');
 const appearance = require('./src/core/appearance');
 const monitor = require('./src/core/monitor');
+const memory = require('./src/core/memory');
 const platform = require('./src/core/platform');
 const diagnostics = require('./src/core/diagnostics');
 const updater = require('./src/core/updater');
@@ -105,6 +106,7 @@ let installing = null;
 let modInstalling = null;
 let packImporting = null;
 let currentLaunch = null;
+let memoryCleaning = null;
 let pendingAuth = null;
 let shotTarget = null;
 let dumpTarget = null;
@@ -1044,6 +1046,32 @@ function registerIpc() {
 
   ipcMain.handle('monitor:kill', () => monitor.kill());
 
+  ipcMain.handle('memory:stats', () => memory.stats());
+
+  ipcMain.handle('memory:clean', async () => {
+    if (memoryCleaning) return { ok: false, code: 'BUSY', error: '正在清理内存，请稍候' };
+    const skipPids = [process.pid];
+    try {
+      const metrics = app.getAppMetrics();
+      for (const metric of metrics) skipPids.push(Number(metric.pid));
+    } catch (err) {
+      // 读取不到 Electron 进程列表时仍然可以清理其他进程。
+    }
+    if (currentLaunch && currentLaunch.pid) skipPids.push(Number(currentLaunch.pid));
+    memoryCleaning = memory.clean({
+      skipPids,
+      tempDir: path.join(config.root(), 'temp'),
+    });
+    try {
+      const result = await memoryCleaning;
+      if (!result.ok) logger.warn('内存清理失败:', result.error);
+      else logger.info('内存清理完成:', `mode=${result.mode || 'unknown'}`, `trimmed=${result.trimmed}`, `freed=${result.freedMb}MB`);
+      return result;
+    } finally {
+      memoryCleaning = null;
+    }
+  });
+
   ipcMain.handle('diagnostics:latest', () => {
     try {
       return { ok: true, record: diagnostics.latest(), history: diagnostics.history() };
@@ -1364,6 +1392,12 @@ async function captureScreenshot() {
               memoryTotalHint: text('memory-total-hint'),
               memoryOptimize: q('set-memory-optimize') ? q('set-memory-optimize').checked : null,
               memoryOptimizeHint: text('memory-optimize-hint'),
+              cleanerPercent: text('cleaner-percent'),
+              cleanerDetail: text('cleaner-detail'),
+              cleanerResult: text('cleaner-result'),
+              cleanerDisabled: q('btn-clean-memory') ? q('btn-clean-memory').disabled : null,
+              cleanerCard: rect('memory-cleaner-card'),
+              cleanerButton: rect('btn-clean-memory'),
               updateStatus: text('update-status-text'),
               pluginRows: document.querySelectorAll('#plugin-list .plugin-row').length,
               pluginCommands: document.querySelectorAll('#plugin-commands .plugin-command').length,

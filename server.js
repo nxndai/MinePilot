@@ -42,6 +42,7 @@ const microsoft = require('./src/core/microsoft');
 const skinmanager = require('./src/core/skinmanager');
 const appearance = require('./src/core/appearance');
 const monitor = require('./src/core/monitor');
+const memory = require('./src/core/memory');
 const platform = require('./src/core/platform');
 const diagnostics = require('./src/core/diagnostics');
 const updater = require('./src/core/updater');
@@ -91,6 +92,7 @@ let installing = null;
 let modInstalling = null;
 let packImporting = null;
 let currentLaunch = null;
+let memoryCleaning = null;
 let pendingAuth = null;
 let shuttingDown = false;
 const clients = new Set();
@@ -971,6 +973,26 @@ const handlers = {
   'monitor:state': async () => monitor.snapshot(),
 
   'monitor:kill': async () => monitor.kill(),
+
+  'memory:stats': async () => memory.stats(),
+
+  'memory:clean': async () => {
+    if (memoryCleaning) return { ok: false, code: 'BUSY', error: '正在清理内存，请稍候' };
+    const skipPids = [process.pid];
+    if (currentLaunch && currentLaunch.pid) skipPids.push(Number(currentLaunch.pid));
+    memoryCleaning = memory.clean({
+      skipPids,
+      tempDir: path.join(config.root(), 'temp'),
+    });
+    try {
+      const result = await memoryCleaning;
+      if (!result.ok) logger.warn('内存清理失败:', result.error);
+      else logger.info('内存清理完成:', `mode=${result.mode || 'unknown'}`, `trimmed=${result.trimmed}`, `freed=${result.freedMb}MB`);
+      return result;
+    } finally {
+      memoryCleaning = null;
+    }
+  },
 
   'diagnostics:latest': async () => {
     try {

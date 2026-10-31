@@ -683,6 +683,23 @@
         </div>
 
         <div class="settings-grid">
+          <div class="card setting-card memory-cleaner-card" id="memory-cleaner-card">
+            <h3>内存清理</h3>
+            <div class="memory-cleaner">
+              <div class="memory-cleaner-gauge">
+                <div class="memory-cleaner-number" id="cleaner-percent">—</div>
+                <div class="memory-cleaner-caption">系统内存占用</div>
+                <div class="memory-cleaner-bar"><span id="cleaner-fill"></span></div>
+                <div class="muted-sm" id="cleaner-detail">正在读取系统内存…</div>
+              </div>
+              <div class="memory-cleaner-action">
+                <button class="btn primary" id="btn-clean-memory" disabled>清理内存</button>
+                <p class="muted-sm">把其他程序暂时不用的内存页移到页面文件，腾出物理内存给游戏。不会结束进程或删除数据；由启动器启动的游戏进程会被跳过。</p>
+                <p class="memory-cleaner-result" id="cleaner-result"></p>
+              </div>
+            </div>
+          </div>
+
           <div class="card setting-card wide">
             <h3>语言</h3>
             <div class="setting-row">
@@ -729,7 +746,7 @@
               </div>
             </div>
             <div class="setting-row">
-              <div class="setting-label">内存优化<small>G1GC 调优，减少卡顿和内存抖动</small></div>
+              <div class="setting-label">GC 调优<small>优化垃圾回收，减少卡顿（不释放系统内存）</small></div>
               <div class="setting-control">
                 <label class="switch"><input type="checkbox" id="set-memory-optimize"><span></span></label>
                 <span class="muted-sm" id="memory-optimize-hint">推荐开启（Java 8+）</span>

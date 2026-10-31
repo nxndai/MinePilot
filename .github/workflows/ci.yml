@@ -29,6 +29,7 @@ jobs:
           node --check src/core/launcher.js
           node --check src/core/settings.js
           node --check src/core/java.js
+          node --check src/core/memory.js
           node --check renderer/js/i18n.js
           node --check renderer/js/app.js
           node --check renderer/js/settings.js

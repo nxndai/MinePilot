@@ -4,6 +4,9 @@
   const { $, esc } = MP;
   let bound = false;
   let saving = null;
+  let cleanerBusy = false;
+  let cleanerTimer = null;
+  let cleanerStats = null;
 
   function onlineDownloadsEnabled() {
     return Boolean(MP.state.settings && MP.state.settings.onlineDownloads);
@@ -50,6 +53,108 @@
       $('#memory-optimize-hint').textContent = settings.memoryOptimize !== false
         ? '已开启，适用于 Java 8 及以上'
         : '已关闭，使用游戏默认 GC';
+    }
+  }
+
+  function percentText(value) {
+    const percent = Number(value);
+    return `${Number.isFinite(percent) ? Math.round(percent) : 0}%`;
+  }
+
+  function renderCleaner(stats) {
+    if (!stats) return;
+    const percent = Math.max(0, Math.min(100, Number(stats.percent) || 0));
+    const number = $('#cleaner-percent');
+    const fill = $('#cleaner-fill');
+    const detail = $('#cleaner-detail');
+    const button = $('#btn-clean-memory');
+
+    if (number) {
+      number.textContent = percentText(percent);
+      number.classList.toggle('high', percent >= 80);
+    }
+    if (fill) {
+      fill.style.width = `${percent}%`;
+      fill.classList.toggle('high', percent >= 80);
+    }
+    if (detail) {
+      detail.textContent = stats.supported === false
+        ? '当前系统不支持内存清理'
+        : `已用 ${memoryText(stats.usedMb)} / ${memoryText(stats.totalMb)}`;
+    }
+    if (button) {
+      button.disabled = cleanerBusy || stats.supported === false;
+      button.title = stats.supported === false ? '仅 Windows 支持内存清理' : '';
+    }
+  }
+
+  async function refreshCleaner() {
+    if (cleanerBusy) return;
+    try {
+      const stats = await MP.api.invoke('memory:stats');
+      if (!stats) return;
+      cleanerStats = stats;
+      renderCleaner(stats);
+    } catch (err) {
+      const detail = $('#cleaner-detail');
+      if (detail) detail.textContent = '无法读取系统内存信息';
+    }
+  }
+
+  function startCleanerPolling() {
+    stopCleanerPolling();
+    refreshCleaner();
+    cleanerTimer = setInterval(refreshCleaner, 8000);
+  }
+
+  function stopCleanerPolling() {
+    if (cleanerTimer) clearInterval(cleanerTimer);
+    cleanerTimer = null;
+  }
+
+  function showCleanerResult(text, kind) {
+    const result = $('#cleaner-result');
+    if (!result) return;
+    result.textContent = text;
+    result.className = `memory-cleaner-result${kind ? ` ${kind}` : ''}`;
+  }
+
+  async function cleanMemory() {
+    if (cleanerBusy || !cleanerStats || cleanerStats.supported === false) return;
+    cleanerBusy = true;
+    const button = $('#btn-clean-memory');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '正在清理…';
+    }
+    showCleanerResult('正在整理其他程序的内存工作集，请稍候…', 'busy');
+    try {
+      const result = await MP.api.invoke('memory:clean');
+      if (!result || result.ok === false) throw new Error((result && result.error) || '内存清理失败');
+      cleanerStats = result.after;
+      renderCleaner(result.after);
+      const freed = Number(result.freedMb) || 0;
+      const beforePercent = Number(result.before && result.before.percent) || 0;
+      const afterPercent = Number(result.after && result.after.percent) || 0;
+      const trimmed = Number(result.trimmed) || 0;
+      if (freed > 0) {
+        showCleanerResult(
+          `已清理 ${trimmed} 个进程，释放约 ${memoryText(freed)}（${percentText(beforePercent)} → ${percentText(afterPercent)}）。`,
+        );
+        MP.toast(`已释放约 ${memoryText(freed)} 内存`, 'ok');
+      } else {
+        showCleanerResult(`已清理 ${trimmed} 个进程；系统占用变化不明显，部分内存可能已被重新载入。`);
+        MP.toast('内存清理完成，占用变化不明显', 'ok');
+      }
+    } catch (err) {
+      showCleanerResult('内存清理失败，请稍后重试。', 'error');
+      MP.toast('内存清理失败，请稍后重试', 'err', 5000);
+    } finally {
+      cleanerBusy = false;
+      if (button) {
+        button.textContent = '清理内存';
+        button.disabled = Boolean(cleanerStats && cleanerStats.supported === false);
+      }
     }
   }
 
@@ -283,6 +388,7 @@
     });
     MP.on('#btn-detect-java', 'click', detectJava);
     MP.on('#btn-download-java', 'click', installJava);
+    MP.on('#btn-clean-memory', 'click', cleanMemory);
 
     MP.on('#set-java', 'change', (event) => {
       save({ javaPath: event.target.value });
@@ -309,7 +415,7 @@
       const enabled = event.target.checked;
       await save({ memoryOptimize: enabled });
       render();
-      MP.toast(enabled ? '已启用内存优化' : '已关闭内存优化', 'ok');
+      MP.toast(enabled ? '已启用 GC 调优' : '已关闭 GC 调优', 'ok');
     });
 
     bindRange($('#set-threads'), 1, 24, (value) => save({ downloadThreads: value }), (value) => {
@@ -442,6 +548,10 @@
     init,
     render,
     renderJava,
-    onShow: render,
+    onShow: () => {
+      render();
+      startCleanerPolling();
+    },
+    onLeave: stopCleanerPolling,
   };
 })();

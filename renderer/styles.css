@@ -1793,6 +1793,91 @@ select option {
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
 }
 
+.memory-cleaner-card {
+  grid-column: 1 / -1;
+  padding-bottom: 18px;
+}
+
+.memory-cleaner {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  padding: 8px 0 2px;
+  flex-wrap: wrap;
+}
+
+.memory-cleaner-gauge {
+  flex: 0 0 230px;
+}
+
+.memory-cleaner-number {
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-cleaner-number.high {
+  color: var(--danger);
+}
+
+.memory-cleaner-caption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.memory-cleaner-bar {
+  height: 7px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.memory-cleaner-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--ok));
+  transition: width 0.35s ease, background 0.35s ease;
+}
+
+.memory-cleaner-bar span.high {
+  background: linear-gradient(90deg, #f59e0b, var(--danger));
+}
+
+.memory-cleaner-action {
+  flex: 1;
+  min-width: 260px;
+}
+
+.memory-cleaner-action .btn {
+  min-width: 124px;
+}
+
+.memory-cleaner-action p {
+  max-width: 680px;
+  margin: 9px 0 0;
+  line-height: 1.6;
+}
+
+.memory-cleaner-result {
+  min-height: 18px;
+  color: var(--ok);
+}
+
+.memory-cleaner-result.error {
+  color: var(--danger);
+}
+
+.memory-cleaner-result.busy {
+  color: var(--muted);
+}
+
 .setting-row {
   display: flex;
   flex-direction: column;
@@ -2838,6 +2923,7 @@ html[data-theme="light"] .setting-label small { color: #71809a; }
 html[data-theme="light"] .switch span { background: #cfdbeb; }
 html[data-theme="light"] .switch input:checked + span { background: var(--accent); }
 html[data-theme="light"] .range-value { color: #33445d; }
+html[data-theme="light"] .memory-cleaner-bar { background: #e5ebf3; }
 html[data-theme="light"] .page-head h1 { color: #14233a; }
 html[data-theme="light"] .page-head .sub { color: #71809a; }
 html[data-theme="light"] .badge { background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.18); color: #24539f; }
@@ -3810,5 +3896,16 @@ html[data-theme="light"] .about-update-notes pre { background: #f3f6fa; color: #
   .online-offline-banner {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .memory-cleaner {
+    align-items: stretch;
+    gap: 18px;
+    flex-direction: column;
+  }
+  .memory-cleaner-gauge {
+    flex-basis: auto;
   }
 }
