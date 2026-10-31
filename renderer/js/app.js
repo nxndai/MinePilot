@@ -90,9 +90,9 @@
       await MP.modal({
         title: english ? 'Welcome to MinePilot' : '欢迎使用 MinePilot',
         body: english
-          ? `<p>This is a <strong>PCL-style</strong> Minecraft launcher with <strong>offline accounts and Microsoft login</strong>. It installs vanilla Minecraft and can add Fabric, Forge, NeoForge or Quilt with one click, with version isolation.</p>
+          ? `<p>This is a <strong>lightweight</strong> Minecraft Java Edition launcher with <strong>offline accounts and Microsoft login</strong>. It installs vanilla Minecraft and can add Fabric, Forge, NeoForge or Quilt with one click, with version isolation.</p>
           <p class="muted-sm">You can search Modrinth or CurseForge from the Mods page, filter by category, and resolve required dependencies automatically. MinePilot does not bypass authentication or modify game files. If you enjoy Minecraft, please buy it to support Mojang.</p>`
-          : `<p>这是一个 <strong>PCL 风格</strong>的 Minecraft 启动器，支持<strong>离线账户与 Microsoft 正版登录</strong>，可安装原版，并一键安装 Fabric、Forge、NeoForge、Quilt，管理版本隔离。</p>
+          : `<p>这是一个 <strong>轻量</strong>的 Minecraft Java 版启动器，支持<strong>离线账户与 Microsoft 正版登录</strong>，可安装原版，并一键安装 Fabric、Forge、NeoForge、Quilt，管理版本隔离。</p>
           <p class="muted-sm">现在还可以在「模组」页从 Modrinth 或 CurseForge 搜索模组，按功能、优化、科技等分类筛选，并自动补齐必需前置。MinePilot 不会绕过正版验证，也不会修改游戏文件。如果你喜欢 Minecraft，请购买正版支持 Mojang。</p>`,
         actions: [
           {

@@ -1,8 +1,8 @@
 {
   "name": "minepilot",
   "productName": "MinePilot",
-  "version": "1.8.0",
-  "description": "MinePilot — 一款 PCL 风格的 Minecraft 启动器（第三方独立实现）",
+  "version": "1.8.1",
+  "description": "MinePilot — 一款轻量的 Minecraft 启动器（第三方独立实现）",
   "main": "main.js",
   "author": "MinePilot Contributors",
   "license": "MIT",

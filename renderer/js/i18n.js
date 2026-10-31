@@ -10,7 +10,7 @@
 
   const EN = {
     // 标题栏、导航、账户
-    "PCL 风格": "PCL-style",
+    "Minecraft Java 版": "Minecraft Java Edition",
     "离线账户": "Offline account",
     "启动": "Launch",
     "版本": "Versions",
@@ -297,7 +297,7 @@
     "关于正版": "About the official game",
     "离线账户无法加入正版验证服务器": "Offline accounts cannot join online-mode servers",
     "前往购买正版": "Buy the official game",
-    "一款 PCL 风格的 Minecraft 启动器 · 第三方独立实现": "A PCL-style Minecraft launcher · independent third-party implementation",
+    "一款轻量的 Minecraft Java 版启动器 · 第三方独立实现": "A lightweight Minecraft Java Edition launcher · independent third-party implementation",
     "独立应用": "Desktop app",
     "桌面端": "Desktop",
     "关于本项目": "About this project",

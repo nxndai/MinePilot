@@ -54,6 +54,7 @@ const ASSETS_DIR = path.join(APP_ROOT, 'assets');
 const SHELL_OPEN_EXE = path.join(APP_ROOT, 'MinePilot.exe');
 const EXPLORER_EXE = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
 const CMD_EXE = process.env.ComSpec || 'cmd.exe';
+const RUNDLL32_EXE = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'rundll32.exe');
 const pkg = require('./package.json');
 
 const dataRoot = process.env.MINEPILOT_HOME
@@ -222,20 +223,6 @@ async function openPath(target) {
   return { ok: false, error: `系统未能打开该目录（${attempts.join('；')}）` };
 }
 
-function findEdge() {
-  const bases = [
-    process.env['ProgramFiles(x86)'],
-    process.env.ProgramFiles,
-    process.env.ProgramW6432,
-    process.env.LOCALAPPDATA,
-  ].filter(Boolean);
-  for (const base of bases) {
-    const candidate = path.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe');
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
 function spawnDetached(exe, args) {
   return new Promise((resolve, reject) => {
     let child;
@@ -280,20 +267,23 @@ async function openExternal(url) {
     return { ok: false, error: `系统未能打开浏览器（${attempts.join('；')}）` };
   }
 
-  // 优先显式启动 Edge 新窗口。ShellExecute 在部分系统上会返回成功，
-  // 但浏览器窗口并没有出现；显式进程参数更可靠。
-  const edge = findEdge();
-  if (edge) {
-    try {
-      await spawnDetached(edge, ['--new-window', target]);
-      logger.info('已通过 Edge 打开链接:', target);
-      return { ok: true, via: 'edge' };
-    } catch (err) {
-      attempts.push(`Edge: ${err.message}`);
-      logger.warn('Edge 打开链接失败:', err.message);
-    }
-  } else {
-    attempts.push('Edge: 未安装');
+  // 优先调用 Windows 的 URL 协议处理器；直接启动 msedge.exe 可能只留下
+  // 后台进程，不会显示浏览器窗口。
+  try {
+    await spawnDetached(RUNDLL32_EXE, ['url.dll,FileProtocolHandler', target]);
+    logger.info('已通过 URL 协议处理器打开链接:', target);
+    return { ok: true, via: 'rundll32' };
+  } catch (err) {
+    attempts.push(`Rundll32: ${err.message}`);
+  }
+
+  // 再交给资源管理器处理 URL 关联，它会调用系统默认浏览器。
+  try {
+    await spawnDetached(EXPLORER_EXE, [target]);
+    logger.info('已通过资源管理器打开链接:', target);
+    return { ok: true, via: 'explorer' };
+  } catch (err) {
+    attempts.push(`Explorer: ${err.message}`);
   }
 
   // 回退：ShellExecute 助手，交给系统默认浏览器。
@@ -305,13 +295,13 @@ async function openExternal(url) {
     attempts.push('Shell: 缺少 MinePilot.exe');
   }
 
-
-  try {
-    await spawnDetached(EXPLORER_EXE, [target]);
-    return { ok: true, via: 'explorer' };
-  } catch (err) {
-    attempts.push(`Explorer: ${err.message}`);
+  const quoted = `"${target.replace(/"/g, '""')}"`;
+  const cmd = await runAndWait(CMD_EXE, ['/d', '/c', `start "" ${quoted}`], 3000, { hidden: false });
+  if (cmd.ok) {
+    logger.info('已通过系统默认浏览器打开链接:', target);
+    return { ok: true, via: 'start' };
   }
+  attempts.push(`start: ${cmd.error || '失败'}`);
 
   logger.warn('打开链接失败:', target, attempts.join('；'));
   return { ok: false, error: `系统未能打开浏览器（${attempts.join('；')}）` };

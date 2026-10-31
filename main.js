@@ -163,6 +163,7 @@ function analyzeGameExit(info) {
 
 const EXPLORER_EXE = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
 const CMD_EXE = process.env.ComSpec || 'cmd.exe';
+const RUNDLL32_EXE = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'rundll32.exe');
 
 /** 启动一个可见的独立进程，并等到系统真正创建它。 */
 function spawnVisible(exe, args) {
@@ -186,19 +187,6 @@ function spawnVisible(exe, args) {
       finish(resolve, child);
     });
   });
-}
-
-function findEdge() {
-  const bases = [
-    process.env['ProgramFiles(x86)'],
-    process.env.ProgramFiles,
-    process.env.LOCALAPPDATA,
-  ].filter(Boolean);
-  for (const base of bases) {
-    const candidate = path.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe');
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return '';
 }
 
 /**
@@ -264,8 +252,9 @@ async function openDirectory(rawTarget) {
 }
 
 /**
- * 优先用 Edge 新窗口打开链接，避免 ShellExecute 返回成功但浏览器没有窗口。
- * Edge 不可用时再交给系统默认浏览器。
+ * 打开外部链接：Windows 优先调用系统 URL 协议处理器（rundll32），
+ * 再回退到 Electron Shell、资源管理器和 cmd start。直接启动 msedge.exe
+ * 在部分环境下只会创建后台进程，不会显示浏览器窗口，因此不作为首选。
  */
 async function openExternalSafe(rawUrl) {
   const url = String(rawUrl || '').trim();
@@ -296,35 +285,39 @@ async function openExternalSafe(rawUrl) {
     return { ok: false, error: '系统未能打开浏览器（' + attempts.join('；') + '）' };
   }
 
-  const edge = findEdge();
-
-  if (edge) {
-    try {
-      await spawnVisible(edge, ['--new-window', url]);
-      logger.info('已通过 Edge 打开链接:', url);
-      return { ok: true, via: 'edge' };
-    } catch (err) {
-      attempts.push('Edge: ' + err.message);
-      logger.warn('Edge 打开链接失败:', err.message);
-    }
-  } else {
-    attempts.push('Edge: 未安装');
-  }
-
+  // 优先调用 Windows 的 URL 协议处理器。它比直接启动 msedge.exe 更接近
+  // 用户双击链接的行为，也不会只留下后台浏览器进程。
   try {
-    await spawnVisible(CMD_EXE, ['/d', '/c', 'start', '', url]);
-    logger.info('已通过 start 打开链接:', url);
-    return { ok: true, via: 'start' };
+    await spawnVisible(RUNDLL32_EXE, ['url.dll,FileProtocolHandler', url]);
+    logger.info('已通过 URL 协议处理器打开链接:', url);
+    return { ok: true, via: 'rundll32' };
   } catch (err) {
-    attempts.push('start: ' + err.message);
+    attempts.push('Rundll32: ' + err.message);
   }
 
+  // 再交给 Electron 的系统 Shell 关联，让默认浏览器自己决定窗口行为。
   try {
     await shell.openExternal(url);
     logger.info('已通过系统关联打开链接:', url);
     return { ok: true, via: 'shell' };
   } catch (err) {
     attempts.push('Shell: ' + err.message);
+  }
+
+  try {
+    await spawnVisible(EXPLORER_EXE, [url]);
+    logger.info('已通过资源管理器打开链接:', url);
+    return { ok: true, via: 'explorer' };
+  } catch (err) {
+    attempts.push('Explorer: ' + err.message);
+  }
+
+  try {
+    await spawnVisible(CMD_EXE, ['/d', '/c', 'start', '', url]);
+    logger.info('已通过系统默认浏览器打开链接:', url);
+    return { ok: true, via: 'start' };
+  } catch (err) {
+    attempts.push('start: ' + err.message);
   }
 
   logger.warn('打开链接失败:', url, attempts.join('；'));

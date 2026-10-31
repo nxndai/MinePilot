@@ -23,13 +23,23 @@ if (!fs.existsSync(path.join(electronDir, 'electron.exe'))) {
 
 console.log('清理输出目录…');
 // 先移除旧 data 链接，避免递归删除时误伤现有便携数据。
+// 如果 data 是真实目录（用户已经运行过便携版），先移到输出目录外，
+// 打完包再放回，避免升级打包时丢失账户、设置和游戏数据。
 const previousData = path.join(outDir, 'data');
+const backupData = path.join(root, 'dist', 'MinePilot.data.backup');
+let hasDataBackup = false;
 if (fs.existsSync(previousData)) {
   try {
     const stat = fs.lstatSync(previousData);
-    if (stat.isSymbolicLink()) fs.unlinkSync(previousData);
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(previousData);
+    } else if (stat.isDirectory()) {
+      fs.rmSync(backupData, { recursive: true, force: true });
+      fs.renameSync(previousData, backupData);
+      hasDataBackup = true;
+    }
   } catch (err) {
-    console.warn('移除旧 data 链接失败：' + err.message);
+    console.warn('暂存旧 data 失败：' + err.message);
   }
 }
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -63,7 +73,11 @@ for (const entry of entries) {
 const legacyData = path.join(root, 'dist', 'MinePilotWeb', 'data');
 const portableData = path.join(outDir, 'data');
 try {
-  if (fs.existsSync(legacyData)) {
+  if (hasDataBackup) {
+    if (fs.existsSync(portableData)) fs.rmSync(portableData, { recursive: true, force: true });
+    fs.renameSync(backupData, portableData);
+    console.log('已恢复原有便携数据。');
+  } else if (fs.existsSync(legacyData)) {
     fs.symlinkSync(legacyData, portableData, 'junction');
     console.log('已链接现有便携数据：' + legacyData);
   } else {

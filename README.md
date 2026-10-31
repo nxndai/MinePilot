@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.8.0（2026-10-31 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.8.1（2026-10-31 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -13,14 +13,14 @@
 
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.8.0.exe`。
+- 下载 `MinePilot_Setup_1.8.1.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
 如果只需要启动本机已安装的版本，可以不开启在线下载。
 
-一个 **PCL 风格**的 Minecraft Java 版启动器，使用 Electron 独立实现。
+一个轻量的 Minecraft Java 版启动器，使用 Electron 独立实现。
 
 界面与交互参考了 [Plain Craft Launcher (PCL)](https://github.com/Meloong-Git/PCL) 的设计思路，但**没有复制或修改 PCL 的源代码**。PCL 的源码虽然公开，但采用自定义的《PCL 分发有限许可》，并不是 OSI 认证的开源许可证；本项目因此选择独立实现，详见文末的许可说明。
 
@@ -54,6 +54,13 @@
 > 本地皮肤只保存在 MinePilot 数据目录，原版离线客户端默认不会读取第三方皮肤。若要在游戏内显示，需要配合支持本地皮肤的模组或资源包；启动器内预览和头像不受影响。PCL 是源码公开但采用自定义《PCL 分发有限许可》的项目，不是 OSI 开源项目；MinePilot 未复制其代码或素材。
 
 ## 更新记录
+
+### 1.8.1
+
+- 修复「关于」页外部链接在部分 Windows 环境下只启动后台 Edge 进程、不显示浏览器窗口的问题：优先使用系统 URL 关联，并保留 Shell、资源管理器和 `start` 回退。
+- 移除界面中的「PCL 风格」定位文案，统一改为轻量的 Minecraft Java 版启动器描述；对 PCL 的独立实现与许可说明保持不变。
+- 重新平衡设置页两列布局，减少中间大片留白，并把内存清理入口放到设置页顶部和第一张卡片。
+- 更新版本号至 1.8.1，并重新生成 Windows 安装包与独立应用。
 
 ### 1.8.0
 
@@ -171,13 +178,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.8.0",
+  "version": "1.8.1",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.8.0.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.8.0.exe",
+      "name": "MinePilot_Setup_1.8.1.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.8.1.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -312,7 +319,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.8.0.exe`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.8.1.exe`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -320,7 +327,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.8.0.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.8.1.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
