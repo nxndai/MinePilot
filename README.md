@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.8.2（2026-10-31 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.2（2026-11-01 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -13,12 +13,14 @@
 
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.8.2.exe`。
+- 下载 `MinePilot_Setup_1.11.2.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
 如果只需要启动本机已安装的版本，可以不开启在线下载。
+
+遇到安装、下载或杀毒软件报毒问题，先看 [常见问题（FAQ）](#faq)。
 
 一个轻量的 Minecraft Java 版启动器，使用 Electron 独立实现。
 
@@ -31,29 +33,154 @@
 - 启动前完整性校验：每次启动自动检查客户端主文件、运行库、natives、日志配置、资源索引和资源对象。开启“在线下载”时，缺失或 SHA1 校验失败的文件会在启动前自动补全；关闭时只做本地校验，发现缺失会提示开启开关后修复。已校验文件使用“大小 + 修改时间”缓存，第二次启动只做快速检查。加载器版本会检查它继承的原版 client.jar。
 - 加载器安装：在「版本」页或「下载」页点击「加载器」，会自动识别并一键安装 **Fabric / Forge / NeoForge / Quilt**。Fabric、Quilt 通过官方 Meta 获取启动配置并补全库文件；Forge、NeoForge 自动下载官方安装器、调用 Java 静默安装并识别生成的版本，全程无需手动下载或放置文件。弹窗会标记当前已安装版本，并默认选择推荐/稳定版。
 - 模组下载：在「模组」页从 **Modrinth** 或 **CurseForge** 搜索模组，按目标版本的游戏版本与加载器（Fabric / Forge / NeoForge / Quilt）过滤，并支持「功能、优化、科技、魔法、冒险、装饰、世界生成、库/API」等分类筛选。安装时会先展示依赖检查弹窗和依赖树，列出主模组、必需前置、层级关系、是否已存在以及风险提示；确认后自动解析并补齐 required 前置，下载到该版本的 `mods` 目录。可选前置只提示、不自动安装。支持选择具体文件版本、SHA1 校验和安装进度显示。Modrinth 开箱可用；CurseForge 官方 API 要求在「设置 → 模组来源」填入自己的 API Key，Key 只保存在本机，不会上传到其他服务器。
-- 可视化模组管理：在「模组与整合包」页按实例列出已安装模组，复选框即可启用/禁用；禁用只是把文件重命名为 `.jar.disabled`，不会移动文件。列表会读取 `fabric.mod.json`、`quilt.mod.json`、`neoforge.mods.toml`、`mods.toml` 或 `mcmod.info` 显示模组名称与版本，并同时识别游戏目录和便携目录里的 mods。
+- 可视化模组管理：在「模组与整合包」页按实例列出已安装模组，复选框即可启用/禁用；禁用只是把文件重命名为 `.jar.disabled`，不会移动文件。列表会读取 `fabric.mod.json`、`quilt.mod.json`、`neoforge.mods.toml`、`mods.toml` 或 `mcmod.info` 显示模组名称、版本、加载器和客户端/服务端标记，并同时识别游戏目录和便携目录里的 mods。
+- 模组健康检查：读取模组元数据里的 `depends` / `dependencies` 后检查缺失的必需前置、前置版本范围、被禁用前置、重复 modid 和客户端/服务端模组混装，并在实例卡片上直接列出问题文件和修复入口。支持按名称、加载器、客户端/服务端和“有问题的”状态筛选，可对当前筛选结果批量启用或禁用。
+- 模组更新检查：按已启用 JAR 的 SHA1 在 Modrinth 反查版本，再按当前游戏版本与加载器获取最新版本，列出“已安装 → 可更新”的差异并提供项目页面入口。没有发布到 Modrinth、无法联网或作者禁用第三方下载的模组会被跳过，不会把猜测结果当成更新。
 - 整合包导入导出：把 `.mrpack` 或 `.zip` 拖到导入区，先预览整合包名称、Minecraft 版本、加载器、文件数量和警告，再确认导入。`.mrpack` 会按清单下载文件并校验 SHA512；带 Minecraft/加载器信息的整合包会自动安装对应版本并创建强制隔离的独立实例，避免污染现有模组。也可以把当前实例导出为 `.mrpack`（推荐，可被其他启动器识别）或 `.zip`，导出内容包含 mods、config、defaultconfigs、kubejs、scripts、resourcepacks、shaderpacks、datapacks 和 options.txt，不包含存档、日志、账户或启动器设置。CurseForge 清单 ZIP 只识别不下载，避免猜测文件直链。
+- 资源包 / 光影 / 数据包管理：新增「内容」页，按实例列出 `resourcepacks`、`shaderpacks` 和 `datapacks`，读取 `pack.mcmeta` 的名称、描述、格式版本与图标；资源包启用状态写入 `options.txt`，光影写入 `config/iris.properties`，停用会重命名/移动而不删除文件。支持导入 ZIP、预览详情、删除到内容回收站，以及从 Modrinth 按资源包/光影/数据包类型搜索下载并自动启用。
+- 联机与内网穿透：新增「联机」页，为 Terracotta / EasyTier / frp 提供官方引导和可选配置模板。填写可执行文件、参数和工作目录后可以一键启动/停止本机联机工具、查看输出并复制局域网地址，参数直接传给进程而不经过 shell。**不捆绑任何第三方二进制、不代管密钥、不绕过正版认证**；浏览器版只展示引导，不能启动本机程序。
+- 多账户与安全存储：账户面板支持多个离线账户和多个 Microsoft 账户，可快速切换、设置备注和查看登录有效期；启动时和切换账户时会自动刷新过期凭据。桌面版通过 Electron `safeStorage`（系统钥匙串）加密保存令牌，文件中不再出现明文 access/refresh token；系统安全存储不可用时会明确警告并退回明文。离线账户名与启动身份保持同步。
+- 插件市场与权限声明：新增 HTTPS JSON 插件索引，可从「设置 → 插件」刷新市场并安装；安装前展示 `plugin.json` 的 `permissions.network` 域名白名单，安装时按 SHA-256 校验压缩包。插件 API 新增 `registerPanel()`、`getMods()`、`getContent()` 和下载事件 `download:started/progress/completed`；联网域名在 Worker 内通过 fetch/XHR/WebSocket/importScripts 统一拦截，未声明的域名一律拒绝。仓库内提供 `docs/plugin-index.json` 与示例插件，索引格式见下文。
 - 账户：离线账户与 Microsoft 正版登录。Microsoft 使用 OAuth 2.0 设备代码流，登录后自动取得正版用户名、UUID 与 Minecraft 访问令牌，可在正版服务器使用。若浏览器没有自动打开，可点「复制链接」手动访问 `https://www.microsoft.com/link`；在浏览器里登录后还需要点「继续 / 接受」完成授权。
 - 离线启动：离线 UUID（`MD5("OfflinePlayer:<name>")`）、JVM / 游戏参数替换、natives 解压、日志实时回显。
 - 崩溃诊断：游戏异常退出时自动读取退出代码、启动日志、Minecraft 日志、`crash-reports` 和 `hs_err_pid*.log`，用通俗语言给出按可信度排序的原因与处理建议；支持一键导出 ZIP 诊断报告（说明、JSON、系统/Java 信息、脱敏日志、模组清单），并保留最近 12 次异常记录。
+- 可行动诊断：内置已知崩溃模式库，包含 OptiFine 与 Fabric 冲突、重复 modid、加载器/架构不匹配、缺少 Fabric API、依赖不完整、内存不足和 Java 版本不匹配等；原因卡片会给出具体修复按钮，例如直接禁用 OptiFine、打开模组管理或 Java 设置、自动安装匹配的 Java。诊断页还可以一键生成**脱敏分享摘要**（隐藏令牌、用户名、本地路径和 IP）并复制，方便粘贴到 Issue 或聊天；公开分享前仍建议自己检查一遍。
 - 启动器更新：可配置 HTTPS manifest 或 GitHub Releases 更新源，手动/启动时检查新版本，显示更新说明，下载时校验 SHA256（源提供时），一键启动安装程序。未配置更新源时不会联网，也不会伪造“官方更新服务器”。
-- 插件系统：从本地 ZIP 安装插件，启用/停用/移除；插件在 Web Worker 中运行，通过受限 API 注册命令、显示提示、读取公开状态，不能直接访问页面 DOM、账户令牌或启动器文件系统。插件仍可联网，只应安装可信来源。
+- 插件系统：从本地 ZIP 或 HTTPS JSON 索引安装插件，启用/停用/移除；插件在 Web Worker 中运行，通过受限 API 注册命令/面板、读取公开状态与模组列表、监听下载事件，不能直接访问页面 DOM、账户令牌或启动器文件系统。联网默认关闭，只允许 `permissions.network` 声明的域名；插件仍可能上传你主动提供的数据，只应安装可信来源。
 - 跨平台：平台相关逻辑集中到 `src/core/platform.js`，支持 Windows / macOS / Linux 的元数据 OS 规则、natives 分类与扩展名、默认游戏目录、Java 发现/Adoptium 安装包（Windows ZIP、macOS/Linux tar.gz）、系统打开命令和 Unix 进程组结束。当前仓库的安装包构建脚本仍只针对 Windows；macOS/Linux 需要在对应系统安装 Node/Electron 后自行打包，详见“跨平台说明”。
-- Java 管理：自动发现已安装的 Java；按游戏版本判断所需 Java 版本；可从 Eclipse Adoptium 自动下载 Temurin JRE（Windows 优先清华镜像，失败回退官方；macOS/Linux 使用官方 tar.gz），下载后校验 SHA256。
+- Java 管理：自动发现已安装的 Java 并显示发行版、完整版本号、位数和路径；按游戏版本判断所需 Java 版本，默认选择满足要求的**最低版本**，避免过新的 Java 与旧模组冲突。设置页可以为每个实例单独指定 Java（覆盖自动匹配），手动添加或从列表隐藏 Java，并设置默认 Java。
+- Java 自动安装：除 Eclipse Adoptium（Temurin）外，新增 Azul Zulu 与 Amazon Corretto 两种发行版；下载后强制校验 SHA256，校验失败立即删除并中止。Zulu 通过 Azul 元数据 API 选择当前平台包，Corretto 使用官方 latest 包与独立 SHA256 文件；任一来源不可用时可以切换其他发行版。
 - 内存管理：默认按物理内存自动推荐分配（2–12 GB），避免手动分配过大拖慢系统；也可以关闭自动分配后手动调整 1–16 GB。可选的 G1GC 垃圾回收调优会减少长时间游玩时的 GC 卡顿和内存抖动，仅在 Java 8 及以上启用；如果 JVM 参数里已经指定了其他 GC，会保留用户设置并跳过内置调优。检测到 32 位 Java 时会自动把堆限制为 1 GB，避免 JVM 无法启动。
 - 内存清理：设置页显示当前系统内存占用，可手动清理其他程序暂时不用的工作集，把物理内存腾给游戏。普通清理默认跳过系统关键进程、启动器自身和由启动器启动的游戏进程；深度清理会通过 UAC 请求管理员权限，调用 Windows 系统级工作集、待机列表和文件缓存整理，释放量更大，可能出现短暂卡顿。两种模式都不结束进程、不删除数据；检测到游戏正在运行时不会执行会波及游戏的全量系统整理。
-- 版本隔离：开启后每个版本使用独立的 `mods`、`saves`、`options.txt` 等数据目录，避免不同版本/模组互相污染；关闭时沿用全局游戏目录。若启动时提示 `EPERM`/“无法写入游戏数据目录”，请确认是从 Windows 桌面快捷方式直接启动（不要在聊天窗口、预览页或沙箱中启动），或把游戏目录换到普通可写文件夹，并将启动器与 Java 加入安全软件信任列表。也可以先双击 `repair-game-dirs.cmd`，为所有版本补齐 `logs`、`saves`、`crash-reports`、`downloads` 等目录。如果原目录存在但仍无法写入文件，启动器会自动改用程序目录下的 `data\game\<版本号>` 便携数据目录，并把原版本的模组、存档和配置复制过去。
+- 版本隔离：开启后每个版本使用独立的 `mods`、`saves`、`options.txt` 等数据目录，避免不同版本/模组互相污染；关闭时沿用全局游戏目录，但检测到 `versions\<版本号>\mods`、`saves`、`options.txt` 等版本独立数据时会自动隔离该实例（PCL 整合包无需手动开启），已有全局模组不会自动迁移。若启动时提示 `EPERM`/“无法写入游戏数据目录”，请确认是从 Windows 桌面快捷方式直接启动（不要在聊天窗口、预览页或沙箱中启动），或把游戏目录换到普通可写文件夹，并将启动器与 Java 加入安全软件信任列表。也可以先双击 `repair-game-dirs.cmd`，为所有版本补齐 `logs`、`saves`、`crash-reports`、`downloads` 等目录。如果原目录存在但仍无法写入文件，启动器会自动改用程序目录下的 `data\game\<版本号>` 便携数据目录，并把原版本的模组、存档和配置复制过去。
+- 存档管理：在「存档」页按实例列出 `saves/` 里的世界，显示世界名、最后游玩时间、大小、文件数和从 `level.dat` 读取的游戏版本；支持创建 ZIP 备份、恢复备份、导出和导入世界压缩包，删除存档时默认先自动备份到同实例的 `backups/`。导入/恢复会先解压到临时目录并校验存在 `level.dat`，确认后再合并覆盖并回滚失败操作。未隔离的多个实例共用同一个 `saves/` 时，界面会提示操作会影响所有共享实例。云同步（WebDAV / S3）暂未内置，备份文件仍保存在本机。
 - 角色工坊：导入、预览、切换和删除本地皮肤与披风。支持 64×64、64×32、128×128 PNG 皮肤和 64×32、64×64、128×64 披风，自动校验 PNG 文件头与尺寸；经典/纤细模型可切换，预览会同时显示披风。皮肤库独立于账户系统，离线账户也能使用，本地皮肤头像会同步到侧栏和首页。图片只保存在本机，不上传。
 - 外观：深色/浅色主题、默认渐变/纯色/本机图片背景、90%–125% 界面缩放和动画开关。背景图片支持 PNG/JPG/WebP/GIF，限制 12 MB 并校验文件签名；缩放使用 Electron 原生缩放，高 DPI 屏幕下不会裁切内容，并遵循系统“减少动态效果”设置。
 - 界面语言：支持简体中文与 English 切换，设置在「设置 → 语言」中，切换后界面自动刷新；启动游戏时会同步修改该实例 `options.txt` 的 `lang` 值（中文 `zh_cn` / 英文 `en_us`），让游戏语言默认跟随启动器，同时保留分辨率、音量等其他游戏设置。
 - 运行监控：游戏启动后实时显示 CPU 使用率、内存占用/分配、累计 CPU 时间、线程数、PID、运行时长和最近 120 行日志，并绘制 CPU 走势。可以打开完整日志、复制日志或一键结束整个游戏进程树。
 - 下载管理：可选自动、BMCLAPI 镜像或官方源，并发线程数 1–32；自动模式官方优先并在失败时切换镜像，BMCLAPI 模式镜像优先并在失败时回退官方。**“在线下载”默认关闭**，开启后才能安装版本、下载模组/整合包和自动安装 Java；关闭时只使用本机已有文件。
-- 设置：界面语言、游戏目录、Java 路径、自动/手动内存分配、GC 调优、内存清理（普通/深度）、窗口分辨率/全屏、JVM 参数、下载源、并发下载数、是否下载资源文件、在线下载开关、离线玩家名、版本隔离、CurseForge API Key、主题、背景、界面缩放和动画。
+- 设置：界面语言、游戏目录、默认 Java、按实例指定 Java、Java 列表管理（添加/隐藏/设为默认）、自动/手动内存分配、GC 调优、内存清理（普通/深度）、窗口分辨率/全屏、JVM 参数、下载源、并发下载数、是否下载资源文件、在线下载开关、离线玩家名、版本隔离、CurseForge API Key、插件索引地址、联机工具配置、主题、背景、界面缩放和动画。
+- 一键删除启动器：设置页底部提供「删除启动器」，确认后强制关闭启动器并删除程序文件、桌面/开始菜单快捷方式和卸载登记。设置、账户、缓存、皮肤以及 Minecraft 游戏存档都会保留；删除后需要重新下载安装包才能再次启动。
 - 启动日志抽屉、安装进度与速度显示、取消安装、删除版本、打开游戏/Mods/日志目录。
 
 > 本地皮肤只保存在 MinePilot 数据目录，原版离线客户端默认不会读取第三方皮肤。若要在游戏内显示，需要配合支持本地皮肤的模组或资源包；启动器内预览和头像不受影响。PCL 是源码公开但采用自定义《PCL 分发有限许可》的项目，不是 OSI 开源项目；MinePilot 未复制其代码或素材。
 
+<a id="faq"></a>
+<a name="faq"></a>
+
+## 常见问题（FAQ）
+
+> 先看这里，再搜索 [已有 Issue](https://github.com/nxndai/MinePilot/issues)。提交 Bug 时请使用「Bug 反馈」模板，并附上诊断报告。
+
+### 为什么提示“未知发布者”？
+
+MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把未签名程序标记为“未知发布者”。这表示 Windows 无法验证发布者，不等于文件一定有问题，也不等于杀毒软件已经确认它是病毒。
+
+- 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
+  ```powershell
+  Get-FileHash .\MinePilot_Setup_1.11.2.exe -Algorithm SHA256
+  ```
+- 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
+- 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
+
+### 为什么下载失败？
+
+1. 检查「设置 → 下载」里的“在线下载”是否已开启。它默认关闭；关闭时只能使用本机已有的版本和文件。
+2. 在「设置 → 下载」切换下载源：自动（官方优先、镜像兜底）、BMCLAPI 镜像优先或仅官方源，然后重试。官方源和镜像都失败时，检查代理、防火墙、DNS 或更换网络。
+3. 确认游戏目录可写、磁盘空间充足，并从桌面或开始菜单正常启动。聊天窗口、预览页或沙箱可能禁止写入，表现为 `EPERM` 或“无法写入游戏数据目录”。
+4. 下载模组或整合包时，CurseForge 需要先在「设置 → 模组来源」填入自己的 API Key；Modrinth 不需要。
+5. 安装 Forge / NeoForge 需要可用的 Java。先在「设置 → Java 管理」确认默认 Java 和版本匹配，或开启在线下载让启动器自动安装 Java。
+6. 下载校验失败通常意味着文件不完整，或下载内容被网络代理/镜像改写。删除该版本的下载缓存后重试，不要继续使用校验失败的文件。仍无法解决时，记录错误文字、版本号和安装方式，按「Bug 反馈」模板附上诊断报告。
+
+### 存档页里的世界会跟着版本隔离吗？
+
+会。存档页按当前选择的实例读取 `saves/`：开启版本隔离，或检测到该版本有独立的 `saves/` 等数据时，每个版本使用自己的存档目录；只有共用全局目录的实例才可能共用同一个 `saves/`，页面会明确提示“操作会影响所有共享实例”。备份写到该实例目录的 `backups/`，不会上传到云端。删除存档默认先备份；恢复备份会覆盖同名世界，导入同名世界则需要先删除或改名。
+
+### 模组显示“缺少前置”或“前置已禁用”怎么办？
+
+先在模组页点「检查问题」，展开问题卡片查看是哪个文件缺少哪个 modid、需要什么版本范围。缺少前置可以用「搜索缺失前置」跳到 Modrinth 下载；前置已禁用时，在同一页启用对应文件即可。重复 modid 表示同一个 modid 有多个 JAR，保留一个并删除或禁用其余文件。版本范围不匹配时，优先安装模组作者要求的版本，不要只改文件名。
+
+### 为什么 Minecraft 1.20 的模组页是空的？
+
+Modrinth 的搜索索引里几乎没有只标记 `1.20` 的模组，绝大多数项目只标记 `1.20.1`；如果实例还是原版，也没有加载器，模组本来就不会被加载。请安装 **1.20.1**，并为它安装 Forge、Fabric 或 NeoForge，再在该实例的模组页搜索。不要直接把 1.20.1 的模组装进 1.20，版本可能不兼容。
+
+### 为什么 VeinMiner 安装后没有效果？
+
+先看下载到的文件名：`veinminer-paper-x.y.z.jar` 是 **Paper 服务端插件**，只能放进服务端 `plugins/`，客户端 `mods/` 不会加载它；Bukkit/Spigot/Folia/Purpur 版本同理。客户端应安装 Forge/Fabric/NeoForge 版本，并确认实例本身装了对应加载器。1.11.2 起，原版实例会提示先安装加载器，纯服务端项目会标记「仅服务端」并禁用安装；客户端安装也只会从对应加载器的文件里选择。Fabric 版 VeinMiner 可能还需要 Fabric API、Fabric Language Kotlin 等前置，安装前看依赖预览里的缺失提示。
+
+### 为什么启动器没有选最高版本的 Java？
+
+自动匹配会优先选择满足该游戏版本要求的**最低** Java 大版本，避免过新的 Java 与旧 Forge/Fabric 模组或加载器不兼容。例如 1.20.1 需要 Java 17，即使系统也装了 Java 21，默认仍使用 Java 17。如果某个实例确实需要更高版本，可在「设置 → Java 管理 → 按版本指定 Java」中单独覆盖；覆盖后启动器会尊重你的选择。
+
+### 诊断分享摘要安全吗？
+
+摘要会隐藏访问令牌、用户名、本地绝对路径和 IP，并省略模组文件名，但仍可能包含游戏版本、加载器、错误类型和系统概况。它不会自动上传到任何服务器；“分享”只是复制到剪贴板。粘贴到公开 Issue 或聊天前，请再检查一遍是否包含不想公开的信息。
+
+### 为什么杀毒软件报毒？
+
+MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没有代码签名。部分杀毒软件会对“未签名 + 自解压/释放文件 + 联网下载”的程序给出启发式告警，因此存在误报的可能；但也不能排除下载源被篡改，不能一概而论。
+
+- 先按上面的方法核对文件来源和 SHA256。哈希不一致时不要运行，直接重新下载。
+- 不要把“关闭实时保护”当作解决方案。确认文件来自官方 Release 且哈希正确后，才考虑把安装包或安装目录加入安全软件的信任列表；如果文件已被隔离，先恢复并核对哈希。
+- 如果确认是官方 Release 仍被拦截，可以向杀毒软件厂商提交误报，并附上文件名、版本和 SHA256，帮助后续版本减少误报。
+- 不要使用第三方“优化版”“绿色版”或来路不明的整合包；这些文件无法通过本项目的哈希校验。
+
+### 遇到 Bug 怎么反馈？
+
+1. 先搜索 [已有 Issue](https://github.com/nxndai/MinePilot/issues)，避免重复提交。
+2. 打开 [新建 Issue](https://github.com/nxndai/MinePilot/issues/new/choose)，选择「Bug 反馈」。
+3. 尽量附上诊断报告：启动器左侧「诊断」→ 右上角「导出报告」，把生成的 ZIP 拖进 Issue；如果表单不能直接上传附件，可以先提交，再编辑 Issue 补传。若启动器无法打开或无法导出，请在模板中说明原因，并附上截图或错误文字。
+4. 写清启动器版本、安装方式（安装包/便携版）、Windows 版本、复现步骤和期望行为。诊断报告可能包含本地路径、用户名和模组列表，上传前请检查并删除敏感信息。
+5. 安全漏洞不要公开提交，请按 [SECURITY.md](SECURITY.md) 私下联系。
+
 ## 更新记录
+
+### 1.11.2
+
+- 修复原版实例安装模组时选中服务端插件的问题：没有 Forge/Fabric/NeoForge/Quilt 的实例会明确提示先安装加载器，不再把 `veinminer-paper` 这类 Paper 插件写进 `mods`。
+- Modrinth/CurseForge 搜索结果会标记「客户端」「双端」「仅服务端」；纯服务端项目沉底并禁用安装按钮，客户端加载器安装时只保留对应加载器的文件。
+- 模组搜索结果支持点击标题或「介绍」按钮打开 Modrinth/CurseForge 项目页。
+- 设置页改用响应式 CSS Grid，修复两列布局下卡片被拆开、控件错位的问题；Java 列表、路径和操作按钮在窄窗口下不再横向溢出。
+- 补充模组侧别过滤、项目页 URL 和原版实例安装拦截的回归测试。
+
+### 1.11.1
+
+- 修复「在线下载」关闭时模组页错误显示“没有找到模组”的问题；现在会明确提示需要先开启在线下载。
+- 开启在线下载后模组页会自动重新搜索，无需手动切换页面。
+- 模组搜索无结果时显示目标版本、加载器、关键词和分类，并显示搜索参数，便于区分筛选问题与 Modrinth 网络问题。
+- 新增「查看日志内容」：即使「打开日志目录」或系统跳转链接失败，也能在启动器内查看、复制脱敏后的 `minepilot.log`。
+- 外部链接或目录无法打开时，改为弹窗显示可复制的链接/路径，不再只提示失败。
+- 模组搜索日志新增 `source`、`gameVersion`、`loader`、`query`、`category` 与结果数量，便于定位返回 0 条的情况。
+- 模组页对 Minecraft 1.20 + Modrinth 的空结果给出明确提示：Modrinth 的 1.20 筛选基本为空，需安装 1.20.1 并添加 Forge/Fabric/NeoForge，而不是当成网络故障。
+- 安装器在覆盖安装前会结束残留的 MinePilot 进程；若目录被占用或无写入权限，会显示具体路径和处理建议，不再只报“访问被拒绝”。
+- 提供 `MinePilot_1.11.1_portable.zip` 便携版，解压到用户可写目录即可运行，绕过安装目录权限问题。
+
+### 1.11.0
+
+- 新增「内容」页：按实例管理资源包、光影和数据包，支持启用/停用、详情预览、ZIP 导入、删除到回收站，以及从 Modrinth 搜索下载。
+- 新增「联机」页：为 Terracotta / EasyTier / frp 提供官方引导和本地工具配置，一键启动/停止、查看日志、复制局域网地址；不捆绑第三方二进制，不绕过正版认证，浏览器版只提供引导。
+- 账户体系升级：多离线/多 Microsoft 账户、快速切换、头像与备注、过期提示和自动刷新；桌面版使用 Electron `safeStorage` 加密令牌，并迁移旧版单账户数据。
+- 插件生态升级：新增 HTTPS JSON 插件市场、安装前权限确认、SHA-256 校验、联网域名白名单，以及面板注册、读取模组/内容和下载事件 API。
+- 补齐中英文界面、插件索引示例与四组回归测试（账户、内容、插件、联机），更新版本号至 1.11.0 并重新构建 Windows 安装包。
+
+### 1.10.0
+
+- 新增「存档」页：按实例读取 `saves/`，显示世界名、最后游玩时间、大小、文件数和游戏版本；支持 ZIP 备份、恢复、导入、导出和删除前自动备份，并在共享 `saves/` 的实例上给出影响提示。
+- 新增最小 NBT 读取器解析 `level.dat`，不依赖外部库；恢复/导入会先解压到临时目录、校验 `level.dat`，确认后再合并，失败时回滚。
+- 模组管理新增依赖完整性检查：缺失前置、前置被禁用、版本范围不匹配、重复 modid、客户端/服务端混装；支持按名称、加载器、客户端/服务端和问题状态筛选，并可批量启用/禁用当前筛选结果。
+- 新增模组更新检查：按 JAR 的 SHA1 在 Modrinth 反查版本，再按当前游戏版本和加载器列出可用更新；没有发布到 Modrinth 的模组会跳过。
+- 诊断新增已知崩溃模式库（OptiFine + Fabric、重复 modid、加载器不匹配、Java 架构、缺少 Fabric API 等）和可执行修复按钮；新增“分享脱敏摘要”，隐藏令牌、用户名、本地路径和 IP 后复制。
+- Java 管理新增多版本列表（发行版、版本号、位数、路径）、按实例指定 Java、手动添加/隐藏/设为默认；自动安装新增 Azul Zulu 与 Amazon Corretto，仍强制 SHA256 校验。
+- 中英文界面补齐存档、模组健康检查、诊断原因和 Java 管理的动态文案，并新增翻译回归测试，避免动态列表再次退回中文。
+- 更新版本号至 1.10.0，并重新生成 Windows 安装包与独立应用。
+
+### 1.9.0
+
+- 设置页新增「删除启动器」：确认后强制关闭启动器，并删除程序文件、桌面/开始菜单快捷方式和卸载登记。
+- 删除操作只清理启动器本身；设置、账户、缓存、皮肤以及 Minecraft 游戏目录和存档都会保留，避免误删游戏数据。
+- 先让界面返回结果再退出，由随程序附带的卸载器等待启动器完全退出后删除；便携版也会跳过程序目录内的 `data` 目录，缺少卸载器的旧版则回退到后台清理脚本。
+- README 新增常见问题（FAQ），并完善 GitHub Issue 模板：Bug 反馈要求附诊断报告，功能请求补充使用场景和模块分类。
+- 更新版本号至 1.9.0，并重新生成 Windows 安装包与独立应用。
 
 ### 1.8.2
 
@@ -185,13 +312,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.8.2",
+  "version": "1.11.2",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.8.2.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.8.2.exe",
+      "name": "MinePilot_Setup_1.11.2.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.2.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -223,25 +350,60 @@ my-plugin/
   "author": "你的名字",
   "description": "插件说明",
   "apiVersion": 1,
-  "main": "main.js"
+  "main": "main.js",
+  "permissions": {
+    "network": ["api.example.com", "*.github.com"]
+  }
 }
 ```
 
-`id` 必须与安装后的文件夹名一致，只能使用小写字母、数字、点、下划线和短横线。`main.js` 在 Web Worker 中运行，不能直接访问页面 DOM、`localStorage`、启动器文件系统或账户令牌；可以通过受限 API 扩展：
+`id` 必须与安装后的文件夹名一致，只能使用小写字母、数字、点、下划线和短横线。`permissions.network` 是联网域名白名单，支持精确域名和 `*.example.com` 通配；省略或留空表示**禁止联网**，`["*"]` 表示任意域名（安装时会高亮为高风险）。插件在安装前会展示这些权限，并对 ZIP 做 SHA-256 校验。
+
+`main.js` 在 Web Worker 中运行，不能直接访问页面 DOM、`localStorage`、启动器文件系统或账户令牌；可以通过受限 API 扩展：
 
 ```js
+minepilot.registerPanel('status', '插件状态', '这里只显示纯文本，不能注入 HTML。');
+
 minepilot.registerCommand('hello', '打个招呼', () => {
   minepilot.toast('你好，MinePilot！');
   return '完成';
 });
 
-minepilot.on('crash:detected', async (record) => {
-  const info = await minepilot.invoke('app:info');
-  minepilot.toast(`检测到崩溃：${record.title}（${info.version}）`);
+minepilot.getMods('<targetVersionId>').then((result) => {
+  minepilot.toast(`已安装 ${result.mods.length} 个模组`);
+});
+
+minepilot.on('download:completed', (event) => {
+  if (event.ok) minepilot.toast(`下载完成：${event.kind}`);
 });
 ```
 
-可用 API：`toast(text, tone)`、`registerCommand(id, title, handler)`、`on(event, handler)`（`settings:changed`、`launch:exit`、`crash:detected`）和只读 `invoke(channel, args)`（`app:info`、`settings:get`、`versions:list`、`monitor:state`、`diagnostics:latest`、`java:detect`）。插件命令会出现在「设置 → 插件」；插件仍可自行联网，安装前请确认来源可信。
+可用 API：`toast(text, tone)`、`registerCommand(id, title, handler)`、`registerPanel(id, title, text)`、`getMods(targetVersionId)`、`getContent(targetVersionId, type)`、`on(event, handler)`（`settings:changed`、`launch:exit`、`crash:detected`、`download:started`、`download:progress`、`download:completed`）和只读 `invoke(channel, args)`（`app:info`、`settings:get`、`versions:list`、`monitor:state`、`diagnostics:latest`、`java:detect`、`mods:list`、`content:list`）。插件命令会出现在「设置 → 插件」；面板显示为纯文本。
+
+### 插件市场索引
+
+「设置 → 插件 → 插件市场」默认读取 [`docs/plugin-index.json`](docs/plugin-index.json)，也可以填写任意 HTTPS JSON 地址。格式：
+
+```json
+{
+  "updatedAt": "2026-10-31T00:00:00Z",
+  "plugins": [
+    {
+      "id": "my-plugin",
+      "name": "我的插件",
+      "version": "1.0.0",
+      "description": "插件说明",
+      "author": "你的名字",
+      "homepage": "https://example.com/my-plugin",
+      "download": "https://example.com/my-plugin.zip",
+      "sha256": "64 位十六进制 SHA-256",
+      "permissions": { "network": ["api.example.com"] }
+    }
+  ]
+}
+```
+
+`download` 必须是 HTTPS；`sha256` 必填，安装前会校验，缺失或校验失败会拒绝安装。索引只读取 `plugins` 数组，单次最多 200 条；无效条目会被跳过并在界面提示。下载后还会核对插件包内 `plugin.json` 的 `id` 与 `permissions.network`，与索引不一致时拒绝安装，避免“展示 A、实际 B”。默认索引中的示例插件源码在 `docs/plugins/`，可以解压后自行审计。
 
 ## 直接运行
 
@@ -260,7 +422,7 @@ node tools\download-electron.js
    .\runtime\electron\electron.exe .
    ```
 
-首次启动会显示欢迎页。请先到「设置 → 下载」开启“在线下载”，再到「下载」页安装一个正式版（例如 1.20.1）。如果本机没有 Java，可在「设置 → Java 运行环境」中选择已有 Java，或开启在线下载后自动安装。
+首次启动会显示欢迎页。请先到「设置 → 下载」开启“在线下载”，再到「下载」页安装一个正式版（例如 1.20.1）。如果本机没有 Java，可在「设置 → Java 管理」中选择已有 Java，或开启在线下载后自动安装。
 
 > 如果从受限的终端/沙箱环境启动，Chromium 可能无法创建子进程。请在普通 Windows 桌面环境中运行。
 
@@ -270,7 +432,7 @@ node tools\download-electron.js
 npm test
 ```
 
-测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景），以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
+测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
 
 ## 发布构建
 
@@ -326,7 +488,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.8.2.exe`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.2.exe`，SHA256 为 `2b96e86aa3137e25e055a7bb1096b499140d37e58750c8b759c5950997b8f330`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -334,7 +496,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.8.2.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.2.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
@@ -444,18 +606,17 @@ runtime/electron/        内置 Electron 运行时
 ## 已知限制
 
 - Microsoft 登录需要联网并打开浏览器输入一次性代码；如果公开客户端 ID 被微软调整，可通过 `MINEPILOT_MS_CLIENT_ID` 换用自己注册的 Azure 应用。
-- Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 运行环境」中安装（自动安装需要先开启“在线下载”）。
+- Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 管理」中安装（自动安装需要先开启“在线下载”）。
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
 - 不支持 1.7 以前需要特殊资源目录结构的极老版本（`legacy` 资源会尽量整理，但不保证）。
 - 本地皮肤/披风只在启动器内预览、管理和生成本地头像，不会写回 Mojang 账户，也不会自动注入游戏。离线客户端默认不读取第三方皮肤；若要在游戏内显示，需要支持本地皮肤的模组或资源包。
-- 没有存档管理。自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；CurseForge 清单 ZIP 仅识别，不会自动下载。
+- 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；CurseForge 清单 ZIP 仅识别，不会自动下载。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
-- 版本隔离默认关闭以兼容已有全局 `mods`；开启后新启动的版本会读取 `versions/<版本号>/mods`，原有全局模组不会自动迁移。通过整合包创建的新实例会写入 `.minepilot.json` 并强制隔离。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。
 - “在线下载”默认关闭；首次安装版本、下载模组/整合包或自动安装 Java 前，需要到「设置 → 下载」手动开启。
 - 启动器不会修改游戏文件，也不会绕过正版验证。
 - 离线账户启动时，游戏仍会尝试查询正版账户属性并得到 HTTP 401。启动器会把这段堆栈压缩成一行提示，不影响单人游戏；原始日志仍保存在日志文件中。
-- 首次启动会自动检测 Java；如果本机没有合适的 Java，会提示从 Eclipse Adoptium 下载 Temurin JRE（Windows 优先使用清华镜像，macOS/Linux 使用官方 tar.gz）。自动安装 Java 同样要求先开启“在线下载”。
+- 首次启动会自动检测 Java；如果本机没有合适的 Java，会提示从 Eclipse Adoptium 下载 Temurin JRE（Windows 优先使用清华镜像，macOS/Linux 使用官方 tar.gz），也可以改选 Azul Zulu 或 Amazon Corretto。自动安装 Java 同样要求先开启“在线下载”，并强制校验 SHA256。
 - 崩溃诊断是基于日志关键词和退出代码的启发式分析，不能保证 100% 找到根因；导出报告中的日志已脱敏，但仍可能包含本地路径、用户名和模组列表。
 - 插件在 Web Worker 中运行，不能直接操作页面或读取账户令牌，但仍可自行联网。请只安装可信来源的插件；插件作者和插件行为由你自行判断。
 - macOS / Linux 的平台代码已经实现，但当前仓库只提供 Windows 安装包构建脚本，且本次发布没有在真实 macOS/Linux 机器上完成端到端验证。需要在这些系统上自行安装 Node/Electron 并打包。
