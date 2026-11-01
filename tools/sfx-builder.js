@@ -12,12 +12,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+const { createZip } = require('../src/core/zip');
 
 const root = path.resolve(__dirname, '..');
 const installerDir = path.join(root, 'tools', 'installer');
 const sourcePath = path.join(installerDir, 'sfx', 'Installer.cs');
 const icon = path.join(root, 'assets', 'MinePilot.ico');
-const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
 const cscCandidates = [
   path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe'),
   path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework', 'v4.0.30319', 'csc.exe'),
@@ -43,6 +43,9 @@ function stage(appDir, staging) {
   fs.mkdirSync(staging, { recursive: true });
   for (const name of fs.readdirSync(appDir)) {
     if (skipEntries.has(name)) continue;
+    // 安装器会从自身 stub 前缀生成卸载程序，不把单独编译的卸载程序放进载荷。
+    // 某些终端防护会锁定/隔离新编译的卸载器，导致 tar 无法读取。
+    if (name === 'Uninstall.exe') continue;
     fs.cpSync(path.join(appDir, name), path.join(staging, name), { recursive: true });
   }
   for (const name of skipEntries) {
@@ -77,33 +80,48 @@ function compileStub(version, stub, buildSource) {
   if (!fs.existsSync(stub)) throw new Error('安装器 stub 编译失败。');
 }
 
-function makePayload(staging, payload, stub) {
-  if (!fs.existsSync(tar)) throw new Error('未找到 Windows tar.exe，无法创建安装数据包。');
-  fs.copyFileSync(stub, path.join(staging, 'Uninstall.exe'));
-  rm(payload);
-  const args = ['-a', '-cf', payload, '-C', staging, '.'];
+function buildUninstaller(outFile, version) {
+  const target = path.resolve(outFile);
+  const buildSource = path.join(installerDir, 'sfx-uninstall-build.cs');
   try {
-    execFileSync(tar, args, { encoding: 'utf8', timeout: 300000 });
-  } catch (err) {
-    // Some Windows Server images ship a tar.exe build that exits 1 without
-    // producing a usable ZIP. Retry with the PowerShell archiver so CI is not
-    // tied to a single tar implementation.
-    console.warn('tar 创建安装数据包失败，改用 PowerShell Compress-Archive。');
-    if (err.stdout) console.warn(String(err.stdout).trim());
-    if (err.stderr) console.warn(String(err.stderr).trim());
-    const quote = (value) => String(value).replace(/'/g, "''");
-    const command = [
-      "$ErrorActionPreference='Stop';",
-      `Compress-Archive -Path '${quote(path.join(staging, '*'))}' -DestinationPath '${quote(payload)}' -Force`,
-    ].join(' ');
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
-      stdio: 'inherit',
-      timeout: 300000,
-    });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    rm(target);
+    compileStub(version, target, buildSource);
+    if (!fs.existsSync(target)) throw new Error('卸载程序编译失败。');
+    return target;
+  } finally {
+    rm(buildSource);
   }
+}
+
+function makePayload(staging, payload, uninstaller) {
+  if (!Buffer.isBuffer(uninstaller) || !uninstaller.length) {
+    throw new Error('安装器 stub 为空，无法生成卸载程序。');
+  }
+  const files = [];
+  const walk = (dir) => {
+    for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, item.name);
+      if (item.isDirectory()) walk(file);
+      else if (item.isFile()) files.push(file);
+    }
+  };
+  walk(staging);
+  files.sort((a, b) => a.localeCompare(b));
+  const entries = files.map((file) => ({
+    name: path.relative(staging, file).split(path.sep).join('/'),
+    filePath: file,
+    mtime: fs.statSync(file).mtime,
+  }));
+  // 安装器自身在文件名变成 Uninstall.exe 时会进入卸载分支，因此可以直接作为
+  // 卸载程序嵌入 ZIP。这样构建过程中不需要把单独编译的卸载器写到磁盘上。
+  entries.push({ name: 'Uninstall.exe', data: uninstaller, mtime: new Date() });
+  rm(payload);
+  const result = createZip(entries, payload, { compress: true });
   if (!fs.existsSync(payload) || fs.statSync(payload).size < 1024) {
     throw new Error('安装数据包生成失败。');
   }
+  return result;
 }
 
 function buildSfx(options) {
@@ -127,22 +145,27 @@ function buildSfx(options) {
       throw new Error(`应用版本不一致：package.json=${version}，安装目录=${appPkg.version}`);
     }
     console.log(`暂存 ${label} 程序文件完成。`);
-    compileStub(version, stub, buildSource);
+    let stubBuffer = Buffer.isBuffer(options.stubBuffer) ? options.stubBuffer : null;
+    if (!stubBuffer) {
+      compileStub(version, stub, buildSource);
+      // 立刻把 stub 读入内存：部分终端防护会在编译后锁定/隔离新生成的 exe，
+      // 等到大载荷打包完成再读就会得到 ENOENT / Permission denied。
+      stubBuffer = fs.readFileSync(stub);
+    }
     console.log('编译小型安装器完成。');
-    makePayload(staging, payload, stub);
+    makePayload(staging, payload, stubBuffer);
     console.log(`生成安装数据包：${(fs.statSync(payload).size / 1024 / 1024).toFixed(1)} MB`);
 
-    rm(outFile);
-    fs.copyFileSync(stub, outFile);
     const data = fs.readFileSync(payload);
-    fs.appendFileSync(outFile, data);
     const length = Buffer.alloc(8);
     length.writeBigInt64LE(BigInt(data.length), 0);
-    fs.appendFileSync(outFile, length);
-    fs.appendFileSync(outFile, Buffer.from('MPPAYLOAD1', 'ascii'));
+    const marker = Buffer.from('MPPAYLOAD1', 'ascii');
+    const installer = Buffer.concat([stubBuffer, data, length, marker]);
+    rm(outFile);
+    fs.writeFileSync(outFile, installer);
 
-    const size = fs.statSync(outFile).size;
-    const hash = crypto.createHash('sha256').update(fs.readFileSync(outFile)).digest('hex');
+    const size = installer.length;
+    const hash = crypto.createHash('sha256').update(installer).digest('hex');
     const hashPath = `${outFile}.sha256`;
     fs.writeFileSync(hashPath, `${hash}  ${path.basename(outFile)}\r\n`, 'utf8');
     console.log('');
@@ -159,4 +182,4 @@ function buildSfx(options) {
   }
 }
 
-module.exports = { buildSfx };
+module.exports = { buildSfx, buildUninstaller };

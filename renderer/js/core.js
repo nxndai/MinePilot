@@ -32,6 +32,31 @@
   const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   MP.esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
 
+  MP.copyText = async function (text) {
+    const value = String(text == null ? '' : text);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch (err) {
+      /* fall through to the textarea fallback */
+    }
+    try {
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      return ok;
+    } catch (err) {
+      return false;
+    }
+  };
+
   MP.on = (selector, event, handler, root) => {
     const node = $(selector, root);
     if (node) node.addEventListener(event, handler);
@@ -116,7 +141,22 @@
       return result || { ok: true };
     } catch (err) {
       const detail = err && err.message ? err.message : String(err || '未知错误');
-      MP.toast(`无法打开链接：${detail}\n${url}`, 'err', 7000);
+      MP.modal({
+        title: '无法自动打开链接',
+        body: `<p>${MP.esc(detail)}</p><p class="muted-sm">可以复制下面的链接，手动粘贴到浏览器打开。</p>`
+          + `<input class="input" readonly value="${MP.esc(url)}" onclick="this.select()">`,
+        actions: [
+          {
+            label: '复制链接',
+            onClick: async () => {
+              const ok = await MP.copyText(url);
+              MP.toast(ok ? '链接已复制' : '复制失败，请手动选择', ok ? 'ok' : 'warn');
+              return false;
+            },
+          },
+          { label: '关闭', kind: 'primary' },
+        ],
+      });
       return { ok: false, error: detail };
     }
   };
@@ -132,7 +172,57 @@
       return result || { ok: true };
     } catch (err) {
       const detail = err && err.message ? err.message : String(err || '未知错误');
-      MP.toast(`无法打开${label || '目录'}：${detail}\n${target}`, 'err', 7000);
+      MP.modal({
+        title: `无法打开${label || '目录'}`,
+        body: `<p>${MP.esc(detail)}</p><p class="muted-sm">可以复制下面的路径，手动粘贴到资源管理器地址栏。</p>`
+          + `<input class="input" readonly value="${MP.esc(target)}" onclick="this.select()">`,
+        actions: [
+          {
+            label: '复制路径',
+            onClick: async () => {
+              const ok = await MP.copyText(target);
+              MP.toast(ok ? '路径已复制' : '复制失败，请手动选择', ok ? 'ok' : 'warn');
+              return false;
+            },
+          },
+          { label: '关闭', kind: 'primary' },
+        ],
+      });
+      return { ok: false, error: detail };
+    }
+  };
+
+  MP.showLogs = async function () {
+    try {
+      const result = await invokeWithTimeout('logs:read');
+      if (!result || result.ok === false) throw new Error((result && result.error) || '日志读取失败');
+      const content = result.content || '（日志为空）';
+      MP.modal({
+        title: '启动日志',
+        width: 920,
+        body: `<p class="muted-sm">${MP.esc(result.path || '')}${result.truncated ? '（仅显示最后一段）' : ''}</p>`
+          + `<pre class="log-content" style="max-height:60vh;overflow:auto;white-space:pre-wrap;">${MP.esc(content)}</pre>`,
+        actions: [
+          {
+            label: '复制全部',
+            onClick: async () => {
+              const ok = await MP.copyText(content);
+              MP.toast(ok ? '日志已复制' : '复制失败，请手动选择', ok ? 'ok' : 'warn');
+              return false;
+            },
+          },
+          { label: '关闭', kind: 'primary' },
+        ],
+      });
+      return { ok: true };
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err || '未知错误');
+      MP.modal({
+        title: '日志无法读取',
+        body: `<p>${MP.esc(detail)}</p><p class="muted-sm">请尝试直接打开日志目录，或把下面的路径发我。</p>`
+          + `<input class="input" readonly value="${MP.esc((MP.state.info && MP.state.info.dataDir) || '')}" onclick="this.select()">`,
+        actions: [{ label: '关闭', kind: 'primary' }],
+      });
       return { ok: false, error: detail };
     }
   };
@@ -144,8 +234,8 @@
       return result || { ok: true };
     } catch (err) {
       const detail = err && err.message ? err.message : String(err || '未知错误');
-      MP.toast(`无法打开日志目录：${detail}`, 'err', 7000);
-      return { ok: false, error: detail };
+      MP.toast(`无法打开日志目录：${detail}，改为直接查看日志`, 'warn', 5000);
+      return MP.showLogs();
     }
   };
 
@@ -414,20 +504,23 @@
     return compatible[0] || null;
   };
 
-  MP.installJavaFlow = async function (major) {
-    const modal = MP.progressModal({ title: `正在安装 Java ${major}`, text: '正在获取 Adoptium 下载信息…' });
+  MP.installJavaFlow = async function (major, vendor) {
+    const labels = { temurin: 'Temurin', zulu: 'Zulu', corretto: 'Corretto' };
+    const vendorId = labels[vendor] ? vendor : 'temurin';
+    const label = labels[vendorId];
+    const modal = MP.progressModal({ title: `正在安装 ${label} Java ${major}`, text: '正在获取 Java 下载信息…' });
     const off = MP.api.on('java:progress', (progress) => {
       modal.update(progress.percent || 0, progress.phase || '');
     });
     try {
-      const result = await MP.api.invoke('java:install', major);
+      const result = await MP.api.invoke('java:install', { major, vendor: vendorId });
       off();
       modal.close();
       if (!result.ok) {
         MP.toast(`Java 安装失败：${result.error}`, 'err', 6000);
         return false;
       }
-      MP.toast(`Java ${major} 安装完成`, 'ok');
+      MP.toast(`${result.java && result.java.vendorLabel ? result.java.vendorLabel : label} Java ${major} 安装完成`, 'ok');
       await MP.refreshJava();
       return true;
     } catch (err) {

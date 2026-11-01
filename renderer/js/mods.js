@@ -51,9 +51,16 @@
   };
   let cfCategoriesLoading = false;
   let lastCfKey = '';
+  let lastOnline = false;
+  let lastSearchError = '';
   const installedKeys = new Set();
   let installedMods = [];
   let installedSeq = 0;
+  let installedHealth = null;
+  let installedDirs = [];
+  let installedUpdates = [];
+  let updateBusy = false;
+  let batchBusy = false;
   let packBusy = false;
   let packMode = '';
 
@@ -76,6 +83,38 @@
   function loaderText(version) {
     const key = loaderKey(version);
     return key ? LOADER_LABELS[key] : '原版';
+  }
+
+  function currentQuery() {
+    const input = $('#mod-search');
+    return input ? input.value.trim() : '';
+  }
+
+  function currentCategoryLabel() {
+    if (!category) return '全部';
+    const item = activeCategories().find((entry) => String(entry.id) === String(category));
+    return item ? item.label : category;
+  }
+
+  function diagnosticText() {
+    const target = targetVersion();
+    return [
+      'MinePilot 模组搜索诊断',
+      `数据源: ${SOURCE_LABELS[source]}`,
+      `目标版本: ${target ? target.id : '未选择'}`,
+      `Minecraft: ${target ? (target.mcVersion || '未知') : '未知'}`,
+      `加载器: ${target ? loaderText(target) : '未知'}`,
+      `关键词: ${currentQuery() || '（空）'}`,
+      `分类: ${currentCategoryLabel()}`,
+      `在线下载: ${onlineDownloadsEnabled() ? '开启' : '关闭'}`,
+      `已加载结果: ${hits.length}/${totalHits}`,
+      `最近错误: ${lastSearchError || '无'}`,
+    ].join('\n');
+  }
+
+  async function copyDiagnostic() {
+    const ok = await MP.copyText(diagnosticText());
+    MP.toast(ok ? '搜索信息已复制，可以直接粘贴发送' : '复制失败，请截图本页', ok ? 'ok' : 'warn', 5000);
   }
 
   function cfKey() {
@@ -190,6 +229,15 @@
       return;
     }
     const loader = loaderKey(target);
+    // Modrinth 的 1.20 版本筛选基本为空，绝大多数项目只标记 1.20.1。
+    // 原版 1.20 还需要先安装加载器；这里直接给出可执行的下一步，避免误判为网络问题。
+    if (source === 'modrinth' && String(target.mcVersion || '') === '1.20') {
+      hint.classList.add('warn');
+      hint.textContent = loader
+        ? `${target.id} 使用 Minecraft 1.20。Modrinth 上几乎没有只标记 1.20 的模组，绝大多数模组使用 1.20.1；请安装 1.20.1 + ${LOADER_LABELS[loader]} 的实例。`
+        : `${target.id} 是原版 Minecraft 1.20，没有模组加载器；而且 Modrinth 上几乎没有 1.20 模组。请安装 1.20.1，并为它安装 Forge、Fabric 或 NeoForge。`;
+      return;
+    }
     if (!loader) {
       hint.classList.add('warn');
       hint.textContent = `${target.id} 没有安装模组加载器；模组可以下载，但游戏不会加载它们。建议先安装 Fabric、Forge 或 NeoForge。`;
@@ -242,6 +290,25 @@
     updateHint();
   }
 
+  function projectUrl(hit) {
+    if (hit && hit.externalUrl) return String(hit.externalUrl);
+    if (!hit) return '';
+    const slug = encodeURIComponent(String(hit.slug || hit.projectId || ''));
+    if (!slug) return '';
+    if (hit.source === 'CurseForge') return `https://www.curseforge.com/minecraft/mc-mods/${slug}`;
+    return `https://modrinth.com/${encodeURIComponent(String(hit.projectType || 'mod'))}/${slug}`;
+  }
+
+  function sideBadge(hit) {
+    if (!hit || !hit.clientSide || hit.clientSide === 'unknown') return '';
+    if (hit.clientSide === 'unsupported') return '<span class="badge orange">仅服务端</span>';
+    if (hit.clientSide === 'required') return '<span class="badge green">客户端</span>';
+    if (hit.clientSide === 'optional' && hit.serverSide === 'required') {
+      return '<span class="badge gray">客户端可选 · 服务端必需</span>';
+    }
+    return '<span class="badge gray">双端</span>';
+  }
+
   function rowHTML(hit) {
     const target = targetVersion();
     const key = target ? `${source}|${target.id}|${hit.projectId}` : '';
@@ -254,16 +321,23 @@
       ? `<span class="badge">${esc(LOADER_LABELS[loaderKey(target)])}</span>`
       : '';
     const installedBadge = installed ? '<span class="badge green">已安装</span>' : '';
+    const url = projectUrl(hit);
+    const serverOnly = hit.clientSide === 'unsupported';
+    const noLoader = Boolean(target && !loaderKey(target));
     const blocked = hit.installable === false;
-    const action = blocked
-      ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
-      : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}">${installed ? '重新安装' : '安装'}</button>`;
+    const action = serverOnly
+      ? '<button class="btn small" disabled title="这是仅服务端/插件版本，客户端无法加载">仅服务端</button>'
+      : noLoader
+        ? '<button class="btn small" disabled title="请先安装 Forge/Fabric/NeoForge/Quilt">需加载器</button>'
+        : blocked
+          ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
+          : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}">${installed ? '重新安装' : '安装'}</button>`;
 
     return `<div class="card mod-row">
       ${iconHTML(hit)}
       <div class="mod-main">
         <div class="mod-title">
-          <span>${esc(hit.title)}</span>
+          <button type="button" class="mod-title-link" data-mod-open="${esc(url)}" title="打开项目介绍页">${esc(hit.title)}</button>
           <span class="mod-author">by ${esc(hit.author || '未知作者')}</span>
           ${installedBadge}
         </div>
@@ -271,13 +345,17 @@
         <div class="mod-tags">
           <span class="badge gray">${esc(SOURCE_LABELS[hit.source] || SOURCE_LABELS[source])}</span>
           ${loaderBadge}
+          ${sideBadge(hit)}
           ${tags}
           <span class="mod-stat">下载 ${fmtCount(hit.downloads)}</span>
           <span class="mod-stat">更新于 ${MP.fmtDate(hit.dateModified)}</span>
           ${blocked ? '<span class="mod-stat" style="color:#e8bf76">作者禁止第三方下载</span>' : ''}
         </div>
       </div>
-      <div class="mod-actions">${action}</div>
+      <div class="mod-actions">
+        ${url ? `<button class="btn small ghost" data-mod-open="${esc(url)}">介绍</button>` : ''}
+        ${action}
+      </div>
     </div>`;
   }
 
@@ -290,20 +368,38 @@
     updateHint();
     if (more) more.classList.toggle('hidden', loading || hits.length >= totalHits || !hits.length);
 
-    if (source === 'curseforge' && !cfKey()) {
-      list.innerHTML = '';
-      setEmpty('CurseForge 需要 API Key', '请到「设置 → 模组来源」填写 CurseForge API Key；Modrinth 开箱即可使用。');
-      return;
-    }
     if (!target) {
       list.innerHTML = '';
       setEmpty('还没有安装版本', '请先在「下载」页安装一个游戏版本，再回来安装模组。');
       return;
     }
+    if (!onlineDownloadsEnabled()) {
+      list.innerHTML = '';
+      setEmpty('在线下载已关闭', '请先在「设置 → 下载」勾选“在线下载”；开启后回到本页会自动重新搜索。');
+      return;
+    }
+    if (source === 'curseforge' && !cfKey()) {
+      list.innerHTML = '';
+      setEmpty('CurseForge 需要 API Key', '请到「设置 → 模组来源」填写 CurseForge API Key；Modrinth 开箱即可使用。');
+      return;
+    }
     if (!hits.length) {
       list.innerHTML = '';
       if (!loading) {
-        setEmpty('没有找到模组', `换一个关键词，或调整 ${SOURCE_LABELS[source]} 的分类/加载器筛选。`);
+        const targetInfo = `目标：${target.id} · Minecraft ${target.mcVersion || '未知'} · ${loaderText(target)} · 数据源 ${SOURCE_LABELS[source]}`;
+        const filterInfo = `搜索：${currentQuery() || '（空）'} · 分类：${currentCategoryLabel()}`;
+        if (source === 'modrinth' && String(target.mcVersion || '') === '1.20') {
+          const loader = loaderKey(target);
+          setEmpty(
+            'Minecraft 1.20 的模组很少',
+            `${targetInfo}\n${filterInfo}。\nModrinth 上几乎没有只标记 1.20 的模组，绝大多数模组使用 1.20.1。`
+              + (loader
+                ? `请安装 1.20.1 + ${LOADER_LABELS[loader]} 的实例后再搜索。`
+                : '当前实例还是原版，没有加载器；请安装 1.20.1，并为它安装 Forge、Fabric 或 NeoForge。')
+          );
+        } else {
+          setEmpty(currentQuery() ? '没有找到模组' : '这个筛选下暂时没有模组', `${targetInfo}\n${filterInfo}。换一个英文关键词，或切换分类/数据源后重试。`);
+        }
       }
       return;
     }
@@ -331,6 +427,7 @@
     const query = queryInput ? queryInput.value.trim() : '';
     const offset = reset ? 0 : hits.length;
     const seq = ++searchSeq;
+    lastSearchError = '';
     loading = true;
     if (reset) {
       hits = [];
@@ -366,6 +463,7 @@
     if ($('#btn-mod-more')) $('#btn-mod-more').disabled = false;
 
     if (!result.ok) {
+      lastSearchError = result.error || `无法连接 ${SOURCE_LABELS[source]}`;
       hits = [];
       totalHits = 0;
       render();
@@ -377,17 +475,16 @@
     hits = reset ? next : hits.concat(next);
     totalHits = Number(result.totalHits) || hits.length;
     render();
-    if (!hits.length) {
-      setEmpty(query ? '没有找到模组' : '这个筛选下暂时没有模组', query
-        ? '换一个英文或中文关键词，或切换分类试试。'
-        : '可以切换分类，或输入关键词搜索，例如 Sodium、JEI、Create。');
-    }
   }
 
   async function chooseVersion(projectId, title) {
     const target = targetVersion();
     if (!target) {
       MP.toast('请先选择目标版本', 'warn');
+      return;
+    }
+    if (!loaderKey(target)) {
+      MP.toast('当前实例没有安装 Forge/Fabric/NeoForge/Quilt，模组不会生效。请先在「版本」页为这个实例安装加载器。', 'warn', 8000);
       return;
     }
 
@@ -541,8 +638,17 @@
     }
   }
 
+  function emitPluginDownload(name, payload) {
+    if (MP.plugins && typeof MP.plugins.broadcast === 'function') MP.plugins.broadcast(name, payload);
+  }
+
   function updateInstallProgress(progress) {
     if (!progress) return;
+    emitPluginDownload('download:progress', {
+      kind: 'mod',
+      percent: Math.max(0, Math.min(100, Number(progress.percent) || 0)),
+      phase: progress.message || '',
+    });
     if ($('#mod-install-bar')) $('#mod-install-bar').classList.remove('hidden');
     if (progress.message && $('#mod-ib-phase')) $('#mod-ib-phase').textContent = progress.message;
     const percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
@@ -589,6 +695,7 @@
     installing = true;
     currentTitle = title;
     showInstallBar(title);
+    emitPluginDownload('download:started', { kind: 'mod', projectId });
     let result;
     try {
       result = await MP.api.invoke('mods:install', {
@@ -603,6 +710,12 @@
       result = { ok: false, error: err.message };
     }
     installing = false;
+    emitPluginDownload('download:completed', {
+      kind: 'mod',
+      projectId,
+      ok: Boolean(result && result.ok),
+      error: (result && result.error) || '',
+    });
 
     if (!result.ok) {
       if ($('#mod-install-bar')) $('#mod-install-bar').classList.add('hidden');
@@ -661,6 +774,69 @@
     if (!result.ok) MP.toast(result.error || '无法打开 mods 目录', 'err', 5000);
   }
 
+  function issueFiles() {
+    const files = new Set();
+    for (const issue of (installedHealth && installedHealth.issues) || []) {
+      for (const file of issue.files || []) files.add(String(file).toLowerCase());
+    }
+    return files;
+  }
+
+  function visibleMods() {
+    const query = String(($('#installed-filter') && $('#installed-filter').value) || '').trim().toLowerCase();
+    const loader = String(($('#installed-loader-filter') && $('#installed-loader-filter').value) || '').toLowerCase();
+    const side = String(($('#installed-side-filter') && $('#installed-side-filter').value) || '').toLowerCase();
+    const status = String(($('#installed-status-filter') && $('#installed-status-filter').value) || '').toLowerCase();
+    const bad = issueFiles();
+    return installedMods.filter((mod) => {
+      if (loader && String(mod.loader || '').toLowerCase() !== loader) return false;
+      if (side && String(mod.side || 'both').toLowerCase() !== side) return false;
+      if (status === 'enabled' && !mod.enabled) return false;
+      if (status === 'disabled' && mod.enabled) return false;
+      if (status === 'issues' && !bad.has(String(mod.filename || '').toLowerCase())) return false;
+      if (!query) return true;
+      return [mod.name, mod.filename, mod.modId, mod.version].some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }
+
+  function renderHealth() {
+    const root = $('#installed-health');
+    if (!root) return;
+    const issues = (installedHealth && installedHealth.issues) || [];
+    const hasUpdates = installedUpdates.length > 0;
+    if (!issues.length && !hasUpdates && !updateBusy) {
+      root.classList.add('hidden');
+      root.innerHTML = '';
+      return;
+    }
+    root.classList.remove('hidden');
+    const issueHTML = issues.length
+      ? `<div class="installed-health-head"><strong>发现 ${issues.length} 个问题</strong><span>${installedHealth.errorCount || 0} 个错误 · ${installedHealth.warningCount || 0} 个提示</span></div>
+        <div class="installed-issues">${issues.map((issue) => `
+          <div class="installed-issue ${esc(issue.severity || 'warning')}">
+            <span class="installed-issue-dot"></span>
+            <div class="installed-issue-main">
+              <strong>${esc(issue.title || '模组问题')}</strong>
+              <p>${esc(issue.detail || '')}</p>
+              ${Array.isArray(issue.files) && issue.files.length ? `<small>${esc(issue.files.slice(0, 5).join(' · '))}${issue.files.length > 5 ? ' …' : ''}</small>` : ''}
+            </div>
+          </div>
+        `).join('')}</div>`
+      : '<div class="installed-health-head ok"><strong>依赖检查通过</strong><span>没有发现缺失前置或重复 modid</span></div>';
+    const updateHTML = updateBusy
+      ? '<div class="installed-update-loading">正在通过 Modrinth 检查已启用模组的更新…</div>'
+      : hasUpdates
+        ? `<div class="installed-health-head"><strong>${installedUpdates.length} 个模组有更新</strong><span>按当前游戏版本与加载器匹配</span></div>
+          <div class="installed-updates">${installedUpdates.map((item) => `
+            <div class="installed-update-row">
+              <div><strong>${esc(item.name)}</strong><span>${esc(item.currentVersion || '未知版本')} → ${esc(item.latestVersion || '新版本')}</span></div>
+              <button class="btn small ghost" data-installed-update-url="${esc(item.pageUrl || '')}">查看</button>
+            </div>
+          `).join('')}</div>`
+        : '';
+    root.innerHTML = issueHTML + updateHTML;
+  }
+
   function renderInstalled(result) {
     const list = $('#installed-list');
     const empty = $('#installed-empty');
@@ -670,6 +846,12 @@
 
     const mods = result && result.ok && Array.isArray(result.mods) ? result.mods : [];
     installedMods = mods;
+    installedHealth = result && result.ok && result.health ? result.health : null;
+    installedDirs = result && Array.isArray(result.dirs) ? result.dirs : [];
+    if (!result || !result.ok) {
+      installedHealth = null;
+      installedUpdates = [];
+    }
     const enabled = mods.filter((mod) => mod.enabled).length;
     const disabled = mods.length - enabled;
     if (count) count.textContent = `${mods.length} 个`;
@@ -679,10 +861,15 @@
       } else if (!mods.length) {
         sub.textContent = '勾选复选框启用或禁用，不会移动 .jar 文件';
       } else {
-        const dirs = Array.isArray(result.dirs) ? result.dirs.map((item) => item.label).filter(Boolean) : [];
-        sub.textContent = `${enabled} 已启用 · ${disabled} 已禁用${dirs.length ? ` · ${Array.from(new Set(dirs)).join(' / ')}` : ''}`;
+        const dirs = installedDirs.map((item) => item.label).filter(Boolean);
+        const errors = installedHealth ? installedHealth.errorCount : 0;
+        sub.textContent = `${enabled} 已启用 · ${disabled} 已禁用${errors ? ` · ${errors} 个依赖问题` : ''}${dirs.length ? ` · ${Array.from(new Set(dirs)).join(' / ')}` : ''}`;
       }
     }
+
+    const visible = visibleMods();
+    const filterCount = $('#installed-filter-count');
+    if (filterCount) filterCount.textContent = mods.length ? `${visible.length}/${mods.length}` : '';
 
     if (!mods.length) {
       list.innerHTML = '';
@@ -693,13 +880,28 @@
       if (text) text.textContent = result && result.ok
         ? '在下方搜索并安装，或把整合包拖到下面的导入区。'
         : ((result && result.error) || '请刷新后重试。');
+      renderHealth();
+      return;
+    }
+    if (!visible.length) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      const title = empty.querySelector('strong');
+      const text = empty.querySelector('span');
+      if (title) title.textContent = '没有符合筛选的模组';
+      if (text) text.textContent = '清空筛选条件，或换一个加载器/状态试试。';
+      renderHealth();
       return;
     }
     empty.classList.add('hidden');
-    list.innerHTML = mods.map((mod) => {
+    list.innerHTML = visible.map((mod) => {
       const meta = [mod.version ? `v${mod.version}` : '', mod.modId].filter(Boolean);
       const location = mod.portable ? '便携目录' : '游戏目录';
-      const fileLine = `${mod.filename} · ${MP.fmtBytes(mod.size || 0)} · ${location}`;
+      const side = mod.side === 'client' ? '仅客户端' : mod.side === 'server' ? '仅服务端' : '';
+      const loader = mod.loader ? String(mod.loader).toUpperCase() : '';
+      const fileLine = `${mod.filename} · ${MP.fmtBytes(mod.size || 0)} · ${location}${loader ? ` · ${loader}` : ''}${side ? ` · ${side}` : ''}`;
+      const fileIssues = (installedHealth && installedHealth.issues ? installedHealth.issues : [])
+        .filter((issue) => (issue.files || []).some((file) => String(file).toLowerCase() === String(mod.filename).toLowerCase()));
       return `<label class="installed-row ${mod.enabled ? '' : 'disabled'}">
         <input type="checkbox" data-mod-filename="${esc(mod.filename)}" ${mod.enabled ? 'checked' : ''} aria-label="${esc(mod.name)} 启用状态">
         <div class="installed-main">
@@ -707,6 +909,7 @@
             <span>${esc(mod.name || mod.filename)}</span>
             ${mod.version ? `<span class="badge gray">v${esc(mod.version)}</span>` : ''}
             ${mod.modId && mod.modId !== mod.name ? `<span class="badge gray">${esc(mod.modId)}</span>` : ''}
+            ${fileIssues.length ? `<span class="save-badge warn">${fileIssues.length} 个问题</span>` : ''}
           </div>
           <div class="installed-file" title="${esc(fileLine)}">${esc(fileLine)}</div>
         </div>
@@ -715,6 +918,7 @@
         </div>
       </label>`;
     }).join('');
+    renderHealth();
   }
 
   async function loadInstalled() {
@@ -734,6 +938,108 @@
     }
     if (seq !== installedSeq) return;
     renderInstalled(result || { ok: false, error: '读取失败' });
+  }
+
+  function rerenderInstalled() {
+    renderInstalled({
+      ok: true,
+      mods: installedMods,
+      health: installedHealth,
+      dirs: installedDirs,
+      count: installedMods.length,
+    });
+  }
+
+  async function checkInstalledUpdates() {
+    const target = targetVersion();
+    if (!target) {
+      MP.toast('请先选择目标版本', 'warn');
+      return;
+    }
+    if (!onlineDownloadsEnabled()) {
+      MP.toast('检查更新需要联网，请先在「设置 → 下载」开启在线下载', 'warn', 5500);
+      return;
+    }
+    if (updateBusy) return;
+    updateBusy = true;
+    installedUpdates = [];
+    renderHealth();
+    const button = $('#btn-installed-updates');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '检查中…';
+    }
+    try {
+      const result = await MP.api.invoke('mods:updates', { targetVersionId: target.id });
+      if (!result || !result.ok) {
+        MP.toast(`检查更新失败：${(result && result.error) || '未知错误'}`, 'err', 6000);
+        return;
+      }
+      installedUpdates = Array.isArray(result.updates) ? result.updates : [];
+      if (result.errors && result.errors.length) {
+        MP.toast(`有 ${result.errors.length} 个模组检查失败，其余结果已显示`, 'warn', 5500);
+      } else if (!installedUpdates.length) {
+        MP.toast(`已检查 ${result.checked || 0} 个模组，没有发现可用更新`, 'ok', 4000);
+      } else {
+        MP.toast(`发现 ${installedUpdates.length} 个模组有更新`, 'ok', 4000);
+      }
+    } catch (err) {
+      MP.toast(`检查更新失败：${err.message}`, 'err', 6000);
+    } finally {
+      updateBusy = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = '检查更新';
+      }
+      renderHealth();
+    }
+  }
+
+  async function batchSetEnabled(enabled) {
+    const target = targetVersion();
+    if (!target) {
+      MP.toast('请先选择目标版本', 'warn');
+      return;
+    }
+    if (batchBusy) return;
+    const visible = visibleMods().filter((mod) => mod.enabled !== enabled);
+    if (!visible.length) {
+      MP.toast(`当前筛选结果中没有需要${enabled ? '启用' : '禁用'}的模组`, 'info', 3500);
+      return;
+    }
+    const ok = await MP.confirm({
+      title: enabled ? '批量启用模组' : '批量禁用模组',
+      text: `将对当前筛选结果中的 ${visible.length} 个模组执行${enabled ? '启用' : '禁用'}。禁用只是把文件重命名为 .jar.disabled，不会删除文件。`,
+      confirmLabel: enabled ? '全部启用' : '全部禁用',
+      danger: !enabled,
+    });
+    if (!ok) return;
+    batchBusy = true;
+    const buttons = [$('#btn-installed-enable-all'), $('#btn-installed-disable-all')].filter(Boolean);
+    buttons.forEach((button) => { button.disabled = true; });
+    try {
+      const result = await MP.api.invoke('mods:set-enabled-many', {
+        targetVersionId: target.id,
+        filenames: visible.map((mod) => mod.filename),
+        enabled,
+      });
+      if (!result || (!result.ok && !result.list)) {
+        MP.toast(`批量操作失败：${(result && result.error) || '未知错误'}`, 'err', 6000);
+        return;
+      }
+      if (result.failed && result.failed.length) {
+        MP.toast(`已处理 ${result.changed.length} 个，${result.failed.length} 个失败`, 'warn', 5500);
+      } else {
+        MP.toast(`已${enabled ? '启用' : '禁用'} ${result.changed.length} 个模组`, 'ok', 3500);
+      }
+      if (result.list) renderInstalled(result.list);
+      else loadInstalled();
+    } catch (err) {
+      MP.toast(`批量操作失败：${err.message}`, 'err', 6000);
+    } finally {
+      batchBusy = false;
+      buttons.forEach((button) => { button.disabled = false; });
+    }
   }
 
   async function onInstalledChange(event) {
@@ -1067,6 +1373,12 @@
   }
 
   function onListClick(event) {
+    const open = event.target.closest('[data-mod-open]');
+    if (open) {
+      const url = open.dataset.modOpen;
+      if (url) MP.openExternal(url);
+      return;
+    }
     const button = event.target.closest('button[data-mod-install]');
     if (!button) return;
     chooseVersion(button.dataset.modInstall, button.dataset.modTitle || '模组');
@@ -1101,14 +1413,20 @@
 
   function onSettingsChanged() {
     const key = cfKey();
+    const online = onlineDownloadsEnabled();
+    const onlineChanged = online !== lastOnline;
+    lastOnline = online;
     updateSourceUI();
+    const resumeSearch = onlineChanged && online && targetVersion() && MP.state.view === 'mods';
     if (source !== 'curseforge') {
       lastCfKey = key;
-      render();
+      if (resumeSearch) doSearch(true);
+      else render();
       return;
     }
     if (key === lastCfKey) {
-      render();
+      if (resumeSearch) doSearch(true);
+      else render();
       return;
     }
     lastCfKey = key;
@@ -1134,6 +1452,7 @@
       lastTargetId = nextId;
       hits = [];
       totalHits = 0;
+      installedUpdates = [];
     }
     updateHint();
     loadInstalled();
@@ -1148,6 +1467,7 @@
     if (before !== after) {
       hits = [];
       totalHits = 0;
+      installedUpdates = [];
       if (MP.state.view === 'mods' && after) doSearch(true);
     } else {
       render();
@@ -1175,11 +1495,27 @@
     });
     MP.on('#btn-mod-more', 'click', () => doSearch(false));
     MP.on('#mod-list', 'click', onListClick);
+    MP.on('#btn-mod-copy-diag', 'click', copyDiagnostic);
+    MP.on('#btn-mod-view-log', 'click', () => MP.showLogs());
     MP.on('#btn-cancel-mod', 'click', cancelInstall);
     MP.on('#btn-mod-open-mods', 'click', openModsFolder);
     MP.on('#btn-installed-open', 'click', openModsFolder);
     MP.on('#btn-installed-refresh', 'click', () => loadInstalled());
+    MP.on('#btn-installed-check', 'click', () => loadInstalled());
+    MP.on('#btn-installed-updates', 'click', checkInstalledUpdates);
+    MP.on('#btn-installed-enable-all', 'click', () => batchSetEnabled(true));
+    MP.on('#btn-installed-disable-all', 'click', () => batchSetEnabled(false));
     MP.on('#installed-list', 'change', onInstalledChange);
+    ['#installed-filter', '#installed-loader-filter', '#installed-side-filter', '#installed-status-filter'].forEach((selector) => {
+      MP.on(selector, 'input', rerenderInstalled);
+      MP.on(selector, 'change', rerenderInstalled);
+    });
+    MP.on('#installed-health', 'click', (event) => {
+      const button = event.target.closest('[data-installed-update-url]');
+      if (!button) return;
+      const url = button.dataset.installedUpdateUrl;
+      if (url) MP.openExternal(url);
+    });
     MP.on('#btn-pack-import', 'click', () => inspectPack(''));
     MP.on('#btn-pack-export', 'click', exportFlow);
     MP.on('#btn-cancel-pack', 'click', cancelPack);
@@ -1188,6 +1524,7 @@
     bindPackDrop();
 
     lastCfKey = cfKey();
+    lastOnline = onlineDownloadsEnabled();
     updateSourceUI();
     renderCategories();
   }
@@ -1213,5 +1550,9 @@
     },
     onVersionsChanged,
     onSettingsChanged,
+    refreshInstalled: (result) => {
+      if (result) renderInstalled(result);
+      else loadInstalled();
+    },
   };
 })();

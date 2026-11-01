@@ -5,6 +5,7 @@
 
   let loginSeq = 0;
   let loginPending = false;
+  let expiryNotified = false;
 
   function accountState() {
     return MP.state.account || { mode: 'offline', microsoft: { authenticated: false } };
@@ -32,6 +33,14 @@
       MP.state.account = await MP.api.invoke('auth:status');
     } catch (err) {
       MP.state.account = { mode: 'offline', microsoft: { authenticated: false } };
+    }
+    const ms = MP.state.account && MP.state.account.microsoft;
+    const expired = ms && Array.isArray(ms.accounts)
+      ? ms.accounts.filter((account) => account.type === 'microsoft' && account.expired)
+      : [];
+    if (expired.length && !expiryNotified) {
+      expiryNotified = true;
+      MP.toast(`有 ${expired.length} 个 Microsoft 账户登录已过期，启动或切换时会自动刷新；也可以到账户管理手动刷新。`, 'warn', 8000);
     }
     if (MP.views.home) MP.views.home.refresh();
     renderSettingsAccount();
@@ -61,49 +70,164 @@
     }
   }
 
+  function accountTypeLabel(account) {
+    return account.type === 'microsoft' ? 'Microsoft' : '离线';
+  }
+
+  function expiryText(account) {
+    if (account.type !== 'microsoft') return '仅本地';
+    if (account.tokenError) return account.tokenError;
+    if (!account.expiresAt) return '登录凭据未知';
+    if (account.expired) return '登录已过期，启动时会尝试刷新';
+    return `登录有效至 ${new Date(account.expiresAt).toLocaleDateString(MP.i18n && MP.i18n.language === 'en-US' ? 'en-US' : 'zh-CN')}`;
+  }
+
   function fillAccountPanel(panel) {
     if (!panel) return;
     const state = accountState();
     const ms = state.microsoft || { authenticated: false };
+    const accounts = Array.isArray(ms.accounts) ? ms.accounts : [];
     const offlineName = (MP.state.settings && MP.state.settings.offlineName) || 'Steve';
 
-    let msBlock;
-    if (ms.authenticated) {
-      const expired = ms.expired ? '（登录已过期，启动时会尝试刷新）' : '（已登录）';
-      msBlock = `<div class="account-line">
-        <div class="avatar" id="mp-ms-avatar"></div>
-        <div class="account-line-main">
-          <strong>${esc(ms.name || 'Microsoft 账户')}</strong>
-          <span class="muted-sm">${expired} · ${esc((ms.uuid || '').slice(0, 8))}…</span>
-        </div>
-        <button class="btn small ghost" data-account="logout">退出登录</button>
-      </div>
-      ${state.mode === 'microsoft' ? '' : '<button class="btn small primary" data-account="use-ms" style="margin-top:10px">使用该 Microsoft 账户启动</button>'}`;
-    } else {
-      msBlock = `<p class="muted-sm">登录 Microsoft 账户后可以加入正版服务器，并显示正版皮肤。</p>
-        <button class="btn small primary" data-account="login-ms">登录 Microsoft 账户</button>`;
-    }
+    const list = accounts.length
+      ? accounts.map((account) => `<div class="account-item${account.active ? ' active' : ''}">
+          <div class="avatar" data-account-avatar="${esc(account.name)}"></div>
+          <div class="account-item-main">
+            <div class="account-item-title">
+              <strong>${esc(account.name)}</strong>
+              <span class="badge">${accountTypeLabel(account)}</span>
+              ${account.active ? '<span class="badge success">当前</span>' : ''}
+            </div>
+            <span class="muted-sm">${esc(expiryText(account))}${account.note ? ` · ${esc(account.note)}` : ''}</span>
+          </div>
+          <div class="account-item-actions">
+            ${account.active ? '' : `<button class="btn tiny" data-account-action="select" data-account-id="${esc(account.id)}">使用</button>`}
+            <button class="btn tiny ghost" data-account-action="note" data-account-id="${esc(account.id)}">备注</button>
+            <button class="btn tiny ghost danger-text" data-account-action="remove" data-account-id="${esc(account.id)}">移除</button>
+          </div>
+        </div>`).join('')
+      : '<p class="muted-sm">还没有保存的账户。添加离线账户，或登录 Microsoft 账户。</p>';
+
+    const encryption = ms.encryption || {};
+    const warning = encryption.warning
+      ? `<p class="account-security-warning">${esc(encryption.warning)}</p>`
+      : `<p class="muted-sm">令牌由 ${esc(encryption.backend || '系统安全存储')} 加密保存，不会暴露给插件或网页。</p>`;
 
     panel.innerHTML = `<div class="account-panel-block">
-      <div class="account-panel-title">Microsoft</div>
-      ${msBlock}
+      <div class="account-panel-title-row">
+        <div class="account-panel-title">账户</div>
+        <span class="muted-sm">${accounts.length} 个</span>
+      </div>
+      <div class="account-list">${list}</div>
+      ${warning}
+      ${ms.authenticated && ms.expired ? '<button class="btn small ghost" data-account-action="refresh">刷新 Microsoft 登录</button>' : ''}
     </div>
     <div class="account-panel-block">
-      <div class="account-panel-title">离线账户</div>
-      <p class="muted-sm">仅用于本地游戏与离线测试，不能加入正版验证服务器。</p>
-      <div class="account-line">
+      <div class="account-panel-title">添加离线账户</div>
+      <div class="account-form">
         <input class="input" id="mp-offline-name" maxlength="16" value="${esc(offlineName)}" placeholder="Steve">
-        <button class="btn small ghost" data-account="save-offline">保存</button>
-        ${state.mode === 'offline' ? '<span class="badge">当前使用</span>' : '<button class="btn small" data-account="use-offline">使用离线账户</button>'}
+        <input class="input" id="mp-offline-note" maxlength="80" placeholder="备注（可选）">
+        <button class="btn small primary" data-account-action="add-offline">添加并使用</button>
       </div>
+      <p class="muted-sm">离线账户仅用于本地游戏与离线测试，不能加入正版验证服务器。</p>
+    </div>
+    <div class="account-panel-block">
+      <div class="account-panel-title">Microsoft</div>
+      <p class="muted-sm">登录后可以加入正版服务器，并显示正版皮肤。可以保存多个账户并随时切换。</p>
+      <button class="btn small primary" data-account-action="login-ms">登录 Microsoft 账户</button>
     </div>`;
 
-    const avatar = panel.querySelector('#mp-ms-avatar');
-    if (avatar && ms.name) MP.setAvatar(avatar, ms.name);
-
-    panel.querySelectorAll('[data-account]').forEach((button) => {
-      button.addEventListener('click', () => handleAction(button.dataset.account, panel));
+    panel.querySelectorAll('[data-account-avatar]').forEach((avatar) => {
+      MP.setAvatar(avatar, avatar.dataset.accountAvatar);
     });
+
+    panel.querySelectorAll('[data-account-action]').forEach((button) => {
+      button.addEventListener('click', () => handleAccountAction(button.dataset.accountAction, button.dataset.accountId, panel));
+    });
+  }
+
+  async function handleAccountAction(action, id, panel) {
+    if (action === 'login-ms') {
+      await startLogin(panel);
+      return;
+    }
+    if (action === 'add-offline') {
+      const nameInput = panel.querySelector('#mp-offline-name');
+      const noteInput = panel.querySelector('#mp-offline-note');
+      const name = nameInput ? nameInput.value.trim() : '';
+      if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) {
+        MP.toast('请输入 3–16 位字母、数字或下划线', 'err');
+        return;
+      }
+      const result = await MP.api.invoke('auth:add-offline', { name, note: noteInput ? noteInput.value.trim() : '' });
+      if (!result || !result.ok) {
+        MP.toast((result && result.error) || '添加账户失败', 'err');
+        return;
+      }
+      await refreshAccount();
+      fillAccountPanel(panel);
+      MP.toast(`已切换到 ${name}`, 'ok');
+      return;
+    }
+    if (action === 'select') {
+      const result = await MP.api.invoke('auth:select', id);
+      if (!result || !result.ok) {
+        MP.toast((result && result.error) || '切换账户失败', 'err');
+        return;
+      }
+      await refreshAccount();
+      fillAccountPanel(panel);
+      MP.toast(`已切换到 ${(result.account && result.account.name) || '账户'}`, 'ok');
+      return;
+    }
+    if (action === 'note') {
+      const account = (accountState().microsoft.accounts || []).find((item) => item.id === id);
+      const note = await MP.prompt({
+        title: '账户备注',
+        label: '例如“主号”“小号”“仅用于测试服务器”',
+        value: (account && account.note) || '',
+        maxlength: 80,
+        confirmLabel: '保存备注',
+      });
+      if (note === null) return;
+      const result = await MP.api.invoke('auth:update-account', { id, note });
+      if (!result || !result.ok) {
+        MP.toast((result && result.error) || '保存备注失败', 'err');
+        return;
+      }
+      await refreshAccount();
+      fillAccountPanel(panel);
+      return;
+    }
+    if (action === 'remove') {
+      const account = (accountState().microsoft.accounts || []).find((item) => item.id === id);
+      const ok = await MP.confirm({
+        title: '移除账户',
+        text: `确定移除「${(account && account.name) || id}」吗？${account && account.type === 'microsoft' ? '本地保存的登录令牌会被删除。' : '离线账户不会被删除任何游戏数据。'}`,
+        confirmLabel: '移除',
+        danger: true,
+      });
+      if (!ok) return;
+      const result = await MP.api.invoke('auth:remove-account', id);
+      if (!result || !result.ok) {
+        MP.toast((result && result.error) || '移除账户失败', 'err');
+        return;
+      }
+      await refreshAccount();
+      fillAccountPanel(panel);
+      MP.toast('账户已移除', 'ok');
+      return;
+    }
+    if (action === 'refresh') {
+      const result = await MP.api.invoke('auth:refresh');
+      if (!result || !result.ok) {
+        MP.toast((result && result.error) || '刷新登录失败', 'err', 6000);
+        return;
+      }
+      await refreshAccount();
+      fillAccountPanel(panel);
+      MP.toast('Microsoft 登录已刷新', 'ok');
+    }
   }
 
   async function setAuthMode(mode) {

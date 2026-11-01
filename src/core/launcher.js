@@ -453,6 +453,8 @@ async function launch(versionId, options = {}) {
   });
   if (integrityResult.repaired > 0) {
     log(`[MinePilot] 完整性校验完成：已修复 ${integrityResult.repaired} 个文件（缺失 ${integrityResult.missing}，损坏 ${integrityResult.broken}）。\n`);
+  } else if (integrityResult.optionalMissing > 0) {
+    log(`[MinePilot] 有 ${integrityResult.optionalMissing} 个可选资源/日志文件缺失或无法写入，已跳过；游戏会使用现有资源继续启动。\n`);
   } else {
     log(`[MinePilot] 完整性校验通过：${integrityResult.checked} 个文件。\n`);
   }

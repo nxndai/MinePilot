@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -22,10 +23,16 @@ function listDirs(dir) {
   }
 }
 
-function addCandidate(set, exe) {
+function ignoredPaths() {
+  return new Set((settings.get().javaIgnorePaths || []).map((item) => path.resolve(String(item || ''))));
+}
+
+function addCandidate(set, exe, ignored = ignoredPaths()) {
   if (!exe) return;
   try {
-    if (fs.existsSync(exe)) set.add(path.resolve(exe));
+    const resolved = path.resolve(exe);
+    if (ignored.has(resolved)) return;
+    if (fs.existsSync(resolved)) set.add(resolved);
   } catch (err) {
     /* ignore */
   }
@@ -55,6 +62,22 @@ function gatherCandidates() {
         addCandidate(set, configured.replace(/java\.exe$/i, 'javaw.exe'));
       }
     }
+  }
+
+  for (const extra of settings.get().javaExtraPaths || []) {
+    const value = String(extra || '').trim();
+    if (!value) continue;
+    try {
+      const stat = fs.statSync(value);
+      if (stat.isDirectory()) {
+        addCandidate(set, javaExecutableIn(value));
+        addCandidate(set, path.join(value, 'bin', platform.javaBinaryName()));
+        addCandidate(set, path.join(value, 'bin', 'java'));
+        addCandidate(set, findJavaExe(value));
+      } else {
+        addCandidate(set, value);
+      }
+    } catch (err) { /* ignore */ }
   }
 
   for (const name of listDirs(config.runtimeDir())) {
@@ -194,11 +217,18 @@ async function detect(force = false) {
   if (!force && cache.list.length && Date.now() - cache.at < 60000) return cache.list;
   const seen = new Set();
   const list = [];
+  const configured = String(settings.get().javaPath || '').trim();
+  const extraPaths = new Set((settings.get().javaExtraPaths || []).map((item) => path.resolve(String(item || ''))));
   for (const exe of gatherCandidates()) {
     if (seen.has(exe)) continue;
     seen.add(exe);
     const info = inspect(exe);
-    if (info) list.push(info);
+    if (info) {
+      list.push(Object.assign({}, info, {
+        isDefault: Boolean(configured) && path.resolve(info.path) === path.resolve(configured),
+        source: extraPaths.has(path.resolve(info.path)) ? 'manual' : 'auto',
+      }));
+    }
   }
   list.sort((a, b) => b.major - a.major || a.path.localeCompare(b.path));
   cache = { at: Date.now(), list };
@@ -218,39 +248,135 @@ function requiredJava(mcVersion, metaMajor) {
   return 8;
 }
 
-async function installJava(major, onProgress, signal) {
-  const targetMajor = [8, 17, 21].includes(Number(major)) ? Number(major) : 21;
+const JAVA_VENDORS = {
+  temurin: { id: 'temurin', label: 'Eclipse Temurin', dir: 'temurin' },
+  zulu: { id: 'zulu', label: 'Azul Zulu', dir: 'zulu' },
+  corretto: { id: 'corretto', label: 'Amazon Corretto', dir: 'corretto' },
+};
+
+function archiveExtension(name) {
+  return /\.tar\.gz$/i.test(name || '') ? 'tar.gz' : /\.zip$/i.test(name || '') ? 'zip' : platform.javaArchiveExt();
+}
+
+async function adoptiumPackage(major, signal) {
   const targetOs = platform.javaOs();
   const targetArch = platform.javaArch();
-  const api = `https://api.adoptium.net/v3/assets/latest/${targetMajor}/hotspot?architecture=${encodeURIComponent(targetArch)}&image_type=jre&os=${encodeURIComponent(targetOs)}&vendor=eclipse`;
-  onProgress({ phase: `获取 Java ${targetMajor} 下载信息`, percent: 2 });
+  const api = `https://api.adoptium.net/v3/assets/latest/${major}/hotspot?architecture=${encodeURIComponent(targetArch)}&image_type=jre&os=${encodeURIComponent(targetOs)}&vendor=eclipse`;
   const assets = await net.fetchJson(api, { signal, timeout: 30000 });
   const pkg = assets && assets[0] && assets[0].binary && assets[0].binary.package;
+  if (!pkg || !pkg.link) throw new Error('无法获取 Adoptium 下载地址，请检查网络');
+  // 清华镜像目前只稳定提供 Windows 包；macOS / Linux 使用 Adoptium 官方地址，避免 404。
+  const mirrorLink = platform.isWindows
+    ? `https://mirrors.tuna.tsinghua.edu.cn/Adoptium/${major}/jre/x64/windows/${pkg.name}`
+    : '';
+  return {
+    vendor: 'temurin',
+    label: 'Eclipse Temurin',
+    link: pkg.link,
+    mirrorLink,
+    name: pkg.name,
+    checksum: pkg.checksum,
+    size: pkg.size,
+    extension: archiveExtension(pkg.name),
+    targetDir: path.join(config.runtimeDir(), `temurin-${major}`),
+    archivePath: path.join(config.runtimeDir(), `temurin-${major}.${archiveExtension(pkg.name)}`),
+  };
+}
+
+async function zuluPackage(major, signal) {
+  const osName = platform.javaOs() === 'windows' ? 'windows' : platform.javaOs() === 'mac' ? 'macos' : 'linux';
+  const arch = platform.javaArch() === 'x64' ? 'x86_64' : platform.javaArch() === 'x86' ? 'i686' : 'aarch64';
+  const query = new URLSearchParams({
+    java_version: String(major),
+    os: osName,
+    arch,
+    java_package_type: 'jre',
+    latest: 'true',
+    release_status: 'ga',
+    page_size: '20',
+  });
+  const api = `https://api.azul.com/metadata/v1/zulu/packages/?${query.toString()}`;
+  const data = await net.fetchJson(api, { signal, timeout: 30000 });
+  const packages = Array.isArray(data) ? data : (data && Array.isArray(data.packages) ? data.packages : []);
+  const pkg = packages.find((item) => item && item.download_url && /\.(zip|tar\.gz)$/i.test(item.name || item.download_url));
+  if (!pkg) throw new Error('Azul 没有返回可用的 Java 下载包，请换用 Temurin 或 Corretto');
+  return {
+    vendor: 'zulu',
+    label: 'Azul Zulu',
+    link: pkg.download_url,
+    mirrorLink: '',
+    name: pkg.name || path.basename(new URL(pkg.download_url).pathname),
+    checksum: pkg.sha256_hash || pkg.checksum,
+    size: pkg.size,
+    extension: archiveExtension(pkg.name || pkg.download_url),
+    targetDir: path.join(config.runtimeDir(), `zulu-${major}`),
+    archivePath: path.join(config.runtimeDir(), `zulu-${major}.${archiveExtension(pkg.name || pkg.download_url)}`),
+  };
+}
+
+async function correttoPackage(major, signal) {
+  const arch = platform.javaArch() === 'x64' ? 'x64' : platform.javaArch() === 'x86' ? 'x86' : 'aarch64';
+  const osName = platform.javaOs() === 'windows' ? 'windows' : platform.javaOs() === 'mac' ? 'macos' : 'linux';
+  const extension = platform.isWindows ? 'zip' : 'tar.gz';
+  const name = `amazon-corretto-${major}-${arch}-${osName}-jdk.${extension}`;
+  const link = `https://corretto.aws/downloads/latest/${name}`;
+  // Corretto 官方提供独立的 SHA256 文件；没有校验值时不继续，避免把未知文件解压进运行时目录。
+  let checksum = '';
+  try {
+    const text = await net.fetchText(`https://corretto.aws/downloads/latest_sha256/${name}`, { signal, timeout: 20000, retries: 2 });
+    const match = String(text || '').match(/[a-f0-9]{64}/i);
+    if (match) checksum = match[0].toLowerCase();
+  } catch (err) {
+    throw new Error(`无法获取 Amazon Corretto 的 SHA256 校验值：${err.message}`);
+  }
+  return {
+    vendor: 'corretto',
+    label: 'Amazon Corretto',
+    link,
+    mirrorLink: '',
+    name,
+    checksum,
+    size: 0,
+    extension,
+    targetDir: path.join(config.runtimeDir(), `corretto-${major}`),
+    archivePath: path.join(config.runtimeDir(), `corretto-${major}.${extension}`),
+  };
+}
+
+async function resolveJavaPackage(vendor, major, signal) {
+  if (vendor === 'zulu') return zuluPackage(major, signal);
+  if (vendor === 'corretto') return correttoPackage(major, signal);
+  return adoptiumPackage(major, signal);
+}
+
+async function installJava(major, onProgress, signal, options = {}) {
+  const targetMajor = [8, 11, 17, 21].includes(Number(major)) ? Number(major) : 21;
+  const vendor = JAVA_VENDORS[options.vendor] ? options.vendor : 'temurin';
+  const label = JAVA_VENDORS[vendor].label;
+  onProgress({ phase: `获取 ${label} Java ${targetMajor} 下载信息`, percent: 2 });
+  const pkg = await resolveJavaPackage(vendor, targetMajor, signal);
   if (!pkg || !pkg.link) throw new Error('无法获取 Java 下载地址，请检查网络');
 
   const runtimeDir = config.runtimeDir();
-  const extension = /\.tar\.gz$/i.test(pkg.name || '') ? 'tar.gz' : /\.zip$/i.test(pkg.name || '') ? 'zip' : platform.javaArchiveExt();
-  const archivePath = path.join(runtimeDir, `temurin-${targetMajor}.${extension}`);
-  const targetDir = path.join(runtimeDir, `temurin-${targetMajor}`);
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  const extension = pkg.extension;
+  const archivePath = pkg.archivePath;
+  const targetDir = pkg.targetDir;
   const totalBytes = pkg.size || 0;
-  // 清华镜像目前只稳定提供 Windows 包；macOS / Linux 使用 Adoptium 官方地址，避免 404。
-  const mirrorLink = platform.isWindows
-    ? `https://mirrors.tuna.tsinghua.edu.cn/Adoptium/${targetMajor}/jre/x64/windows/${pkg.name}`
-    : '';
   let received = 0;
   let lastPercent = 0;
 
-  onProgress({ phase: `下载 Java ${targetMajor}`, percent: 4, bytesTotal: totalBytes, bytesDone: 0 });
-  await net.downloadFile(mirrorLink || pkg.link, archivePath, {
+  onProgress({ phase: `下载 ${label} Java ${targetMajor}`, percent: 4, bytesTotal: totalBytes, bytesDone: 0 });
+  await net.downloadFile(pkg.mirrorLink || pkg.link, archivePath, {
     signal,
     retries: 3,
-    fallbackUrl: mirrorLink ? pkg.link : null,
+    fallbackUrl: pkg.mirrorLink ? pkg.link : null,
     onBytes: (count) => {
       received += count;
       const percent = totalBytes ? Math.min(70, 4 + Math.floor((received / totalBytes) * 66)) : 30;
       if (percent > lastPercent) {
         lastPercent = percent;
-        onProgress({ phase: `下载 Java ${targetMajor}`, percent, bytesTotal: totalBytes, bytesDone: received });
+        onProgress({ phase: `下载 ${label} Java ${targetMajor}`, percent, bytesTotal: totalBytes, bytesDone: received });
       }
     },
   });
@@ -258,7 +384,7 @@ async function installJava(major, onProgress, signal) {
   const expectedSha256 = pkg.checksum ? String(pkg.checksum).trim().toLowerCase() : '';
   if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
     try { fs.rmSync(archivePath, { force: true }); } catch (err) { /* ignore */ }
-    throw new Error('Java 下载源未提供有效的 SHA256 校验值，已中止安装');
+    throw new Error(`${label} 下载源未提供有效的 SHA256 校验值，已中止安装`);
   }
   onProgress({ phase: `校验 Java ${targetMajor}`, percent: 72 });
   const actualSha256 = await net.sha256File(archivePath);
@@ -296,17 +422,35 @@ async function installJava(major, onProgress, signal) {
 
   inspected.delete(exe);
   const info = inspect(exe);
-  settings.update({ javaPath: exe });
+  settings.update({ javaPath: exe, javaVendor: vendor });
   onProgress({ phase: `Java ${targetMajor} 安装完成`, percent: 100 });
-  logger.info('已自动安装 Java:', exe, info && info.version);
-  return { path: exe, major: info ? info.major : targetMajor, version: info ? info.version : '' };
+  logger.info('已自动安装 Java:', exe, info && info.version, vendor);
+  return {
+    path: exe,
+    major: info ? info.major : targetMajor,
+    version: info ? info.version : '',
+    vendor,
+    vendorLabel: label,
+  };
 }
 
 /**
  * 返回适合指定游戏版本的 Java，优先使用用户设置。
  */
-async function pickFor(requiredMajor, configuredPath, force = false) {
+async function pickFor(requiredMajor, configuredPath, force = false, versionId = '') {
   const list = await detect(force);
+  const overrides = settings.get().javaVersionOverrides || {};
+  const overridePath = versionId ? String(overrides[versionId] || '').trim() : '';
+  if (overridePath) {
+    const overrideHit = list.find((item) => path.resolve(item.path) === path.resolve(overridePath));
+    if (overrideHit) {
+      return { java: overrideHit, compatible: overrideHit.major >= requiredMajor, override: true };
+    }
+    if (fs.existsSync(overridePath)) {
+      const info = inspect(overridePath);
+      if (info) return { java: Object.assign({}, info, { isDefault: false, source: 'manual' }), compatible: info.major >= requiredMajor, override: true };
+    }
+  }
   const configuredHit = configuredPath
     ? list.find((item) => path.resolve(item.path) === path.resolve(configuredPath))
     : null;
@@ -331,4 +475,5 @@ module.exports = {
   installJava,
   pickFor,
   findJavaExe,
+  JAVA_VENDORS,
 };

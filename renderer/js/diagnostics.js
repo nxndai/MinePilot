@@ -17,7 +17,7 @@
   function formatDate(timestamp) {
     if (!timestamp) return '—';
     try {
-      return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
+      return new Date(timestamp).toLocaleString(MP.i18n && MP.i18n.language === 'en-US' ? 'en-US' : 'zh-CN', { hour12: false });
     } catch (err) {
       return '—';
     }
@@ -67,16 +67,20 @@
       root.innerHTML = '<p class="diag-history-empty">这次没有匹配到明确原因，日志摘要和系统信息仍会写入报告。</p>';
       return;
     }
-    root.innerHTML = causes.map((cause, index) => `
-      <div class="diag-cause">
+    root.innerHTML = causes.map((cause, index) => {
+      const actions = Array.isArray(cause.actions) ? cause.actions : [];
+      return `<div class="diag-cause">
         <span class="diag-cause-index">${String(index + 1).padStart(2, '0')}</span>
         <div>
           <h4>${esc(cause.title)}<span class="diag-confidence">${esc(confidenceLabel(cause.confidence))}</span></h4>
           <p>${esc(cause.detail)}</p>
           ${cause.evidence ? `<pre class="diag-evidence">${esc(cause.evidence)}</pre>` : ''}
+          ${actions.length ? `<div class="diag-cause-actions">${actions.map((action) => `
+            <button class="btn small ghost ${action.danger ? 'danger-text' : ''}" data-diag-action="${esc(action.id)}" data-diag-kind="${esc(action.kind || '')}" data-diag-view="${esc(action.view || '')}" data-diag-search="${esc(action.search === true ? '1' : (action.search || ''))}">${esc(action.label || action.id)}</button>
+          `).join('')}</div>` : ''}
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   function renderSuggestions(record) {
@@ -253,6 +257,98 @@
     }
   }
 
+  function javaMajorForRecord(record) {
+    const version = String(record && record.versionId || '');
+    if (/1\.21|1\.22/.test(version)) return 21;
+    if (/1\.20|1\.19|1\.18|1\.17/.test(version)) return 17;
+    if (/1\.16/.test(version)) return 8;
+    return 17;
+  }
+
+  async function copySanitizedShare() {
+    if (!state.record) return;
+    try {
+      const result = await MP.api.invoke('diagnostics:share', state.record.id);
+      if (!result || !result.ok) {
+        MP.toast(`生成分享摘要失败：${(result && result.error) || '未知错误'}`, 'err', 5000);
+        return;
+      }
+      if (!result.copied) {
+        try { await navigator.clipboard.writeText(result.text || ''); } catch (err) { /* 浏览器拒绝时下面弹窗让用户手动复制 */ }
+      }
+      MP.modal({
+        title: '已生成脱敏分享摘要',
+        width: 640,
+        body: `<p class="muted-sm">${esc(result.note || '摘要已隐藏令牌、用户名、本地路径和 IP。')}</p>
+          <textarea class="diag-share-text" readonly>${esc(result.text || '')}</textarea>`,
+        actions: [{ label: '完成', kind: 'primary', value: true }],
+      });
+    } catch (err) {
+      MP.toast(`生成分享摘要失败：${err.message}`, 'err', 5000);
+    }
+  }
+
+  async function runCauseAction(button) {
+    const actionId = button.dataset.diagAction || '';
+    const kind = button.dataset.diagKind || '';
+    if (!state.record) return;
+    if (kind === 'navigate') {
+      const view = button.dataset.diagView || 'diagnostics';
+      MP.go(view);
+      const search = button.dataset.diagSearch || '';
+      if (view === 'settings') {
+        setTimeout(() => {
+          const section = document.querySelector('#java-card') || document.querySelector('#java-section') || document.querySelector('[data-settings-section="java"]');
+          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+      }
+      if (view === 'mods' && search) {
+        setTimeout(() => {
+          const sourceTab = document.querySelector('[data-mod-source="modrinth"]');
+          if (sourceTab) sourceTab.click();
+          const input = $('#mod-search');
+          if (input) {
+            input.value = search === '1' ? 'fabric api' : search;
+            const submit = $('#btn-mod-search');
+            if (submit) submit.click();
+          }
+        }, 400);
+      }
+      return;
+    }
+    if (kind === 'java') {
+      await MP.installJavaFlow(javaMajorForRecord(state.record));
+      return;
+    }
+    if (kind !== 'invoke') return;
+    const confirmed = await MP.confirm({
+      title: '执行诊断修复',
+      text: `将对「${state.record.versionId || '当前实例'}」执行此操作。禁用模组只会重命名文件，不会删除。`,
+      confirmLabel: button.textContent.trim() || '继续',
+      danger: true,
+    });
+    if (!confirmed) return;
+    button.disabled = true;
+    try {
+      const result = await MP.api.invoke('diagnostics:action', {
+        id: state.record.id,
+        actionId,
+      });
+      if (!result || !result.ok) {
+        MP.toast(`操作失败：${(result && result.error) || '未知错误'}`, 'err', 6000);
+        return;
+      }
+      MP.toast(result.message || '操作已完成', 'ok', 4500);
+      if (result.list && MP.views.mods && typeof MP.views.mods.refreshInstalled === 'function') {
+        MP.views.mods.refreshInstalled(result.list);
+      }
+    } catch (err) {
+      MP.toast(`操作失败：${err.message}`, 'err', 6000);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function openLogFolder() {
     const record = state.record;
     if (!record) return;
@@ -314,6 +410,11 @@
     MP.on('#btn-diag-export', 'click', exportReport);
     MP.on('#btn-diag-export-main', 'click', exportReport);
     MP.on('#btn-diag-copy', 'click', copySummary);
+    MP.on('#btn-diag-share', 'click', copySanitizedShare);
+    MP.on('#diag-causes', 'click', (event) => {
+      const button = event.target.closest('[data-diag-action]');
+      if (button) runCauseAction(button);
+    });
     MP.on('#btn-diag-open-log', 'click', openLogFolder);
     MP.on('#btn-diag-open-folder', 'click', async () => {
       const result = await MP.api.invoke('diagnostics:open-folder');

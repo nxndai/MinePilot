@@ -122,10 +122,27 @@ function readMarker(gameDir, versionId) {
   }
 }
 
+function hasVersionLocalData(gameDir, versionId) {
+  const folder = gameDirFor(gameDir, versionId, true);
+  if (!folder || folder === gameDir) return false;
+  try {
+    const mods = fs.readdirSync(path.join(folder, 'mods'), { withFileTypes: true });
+    if (mods.some((entry) => entry.isFile() && /\.jar(\.disabled)?$/i.test(entry.name))) return true;
+  } catch (err) {
+    // 没有 mods 目录时继续检查 PCL/第三方启动器常见的版本独立数据。
+  }
+  return ['options.txt', 'saves', 'config', 'shaderpacks']
+    .some((name) => fs.existsSync(path.join(folder, name)));
+}
+
 function isolateFor(gameDir, versionId, globalIsolation) {
   if (globalIsolation) return true;
   const marker = readMarker(gameDir, versionId);
-  return Boolean(marker && marker.isolated);
+  if (marker && typeof marker.isolated === 'boolean') return marker.isolated;
+  // PCL 等启动器会把整合包的 mods/存档直接放在 versions/<id>/ 下，即使全局
+  // 没开版本隔离。自动识别这些实例，否则界面会显示 0 个模组，游戏也不会
+  // 从该目录加载 Forge/NeoForge 模组。
+  return hasVersionLocalData(gameDir, versionId);
 }
 
 function gameDirFor(gameDir, versionId, isolation) {

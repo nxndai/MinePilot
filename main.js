@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -67,6 +67,7 @@ if (!isShot) {
 
 const config = require('./src/core/config');
 const settings = require('./src/core/settings');
+const uninstall = require('./src/core/uninstall');
 const ONLINE_DOWNLOADS_OFF = '在线下载已关闭。请先在「设置 → 下载」中勾选“在线下载”。';
 function onlineDownloadsEnabled() {
   return settings.get().onlineDownloads === true;
@@ -82,6 +83,7 @@ function requireOnlineDownloads() {
 }
 const logger = require('./src/core/logger');
 const versionsCore = require('./src/core/versions');
+const savesCore = require('./src/core/saves');
 const modsCore = require('./src/core/mods');
 const modmanager = require('./src/core/modmanager');
 const modpack = require('./src/core/modpack');
@@ -100,6 +102,20 @@ const platform = require('./src/core/platform');
 const diagnostics = require('./src/core/diagnostics');
 const updater = require('./src/core/updater');
 const plugins = require('./src/core/plugins');
+const content = require('./src/core/content');
+const netplay = require('./src/core/netplay');
+
+// 桌面版把 Microsoft 令牌交给 Chromium 的系统安全存储加密，而不是直接
+// 写入明文 accounts.json。safeStorage 在 Linux 缺少钥匙串时 may return false，
+// accounts 模块会自动退回明文并在界面上给出警告。
+accounts.setSecureStore({
+  backend: 'Electron safeStorage',
+  isAvailable: () => {
+    try { return safeStorage.isEncryptionAvailable(); } catch (err) { return false; }
+  },
+  encrypt: (value) => safeStorage.encryptString(String(value)).toString('base64'),
+  decrypt: (value) => safeStorage.decryptString(Buffer.from(String(value), 'base64')),
+});
 
 let mainWindow = null;
 let installing = null;
@@ -129,6 +145,21 @@ function senderWindow(event) {
 function send(channel, payload) {
   const win = mainWindow;
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+}
+
+/**
+ * 切换账户时同步 authMode / offlineName，并广播一次状态，保证所有页面
+ * 使用与启动游戏相同的账户。账户存储本身仍是唯一事实来源。
+ */
+function applyAccountSelection(account) {
+  const patch = account && account.type === 'microsoft'
+    ? { authMode: 'microsoft' }
+    : { authMode: 'offline', offlineName: (account && account.name) || settings.get().offlineName };
+  const next = settings.update(patch);
+  const payload = { mode: next.authMode, microsoft: accounts.summary() };
+  send('settings:changed', next);
+  send('auth:changed', payload);
+  return { next, payload };
 }
 
 function summarizeDiagnostics(record) {
@@ -336,6 +367,57 @@ function registerIpc() {
     node: process.versions.node,
   }));
 
+  ipcMain.handle('app:remove', async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false, error: '仅 Windows 支持删除启动器' };
+    }
+    if (!app.isPackaged) {
+      return { ok: false, error: '开发模式下不能删除启动器' };
+    }
+    const appDir = path.dirname(process.execPath);
+    try {
+      const uninstaller = path.join(appDir, 'Uninstall.exe');
+      if (fs.existsSync(uninstaller)) {
+        // 新版卸载器支持 /WAITPID：等启动器退出后再删除，避免 IPC 还没返回
+        // 就把窗口强制结束。它同样只删除程序、快捷方式和卸载登记，保留 data。
+        const child = spawn(uninstaller, ['/S', `/WAITPID=${process.pid}`], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        });
+        const started = await new Promise((resolve) => {
+          child.once('spawn', () => resolve(true));
+          child.once('error', (err) => {
+            logger.error('启动卸载程序失败:', err.message);
+            resolve(false);
+          });
+        });
+        if (!started) return { ok: false, error: '无法启动卸载程序，请稍后重试' };
+        child.unref();
+        logger.info('已启动卸载程序:', uninstaller);
+        setTimeout(() => { app.quit(); }, 700);
+        return { ok: true, mode: 'uninstaller', appDir, dataDir: config.root() };
+      }
+
+      const result = uninstall.scheduleRemoval({
+        appDir,
+        dataDir: config.root(),
+        scriptDir: path.join(config.root(), 'uninstall'),
+        pid: process.pid,
+        // 自动化删除测试时不能动真实的桌面快捷方式和卸载登记。
+        cleanShell: process.env.MINEPILOT_TEST_KEEP_SHELL !== '1',
+      });
+      if (!result.ok) return result;
+      logger.info('已安排删除启动器:', appDir, result.scriptPath);
+      // 先让 IPC 结果返回，再退出，给清理脚本留出启动时间。
+      setTimeout(() => { app.quit(); }, 800);
+      return { ok: true, mode: 'script', appDir, dataDir: config.root() };
+    } catch (err) {
+      logger.error('安排删除启动器失败:', err.stack || err.message);
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('settings:get', () => settings.get());
   ipcMain.handle('settings:update', (event, patch) => {
     const next = settings.update(patch || {});
@@ -351,6 +433,61 @@ function registerIpc() {
     mode: settings.get().authMode,
     microsoft: accounts.summary(),
   }));
+
+  ipcMain.handle('auth:accounts', () => ({
+    ok: true,
+    activeId: accounts.summary().activeId || '',
+    accounts: accounts.list(),
+    encryption: accounts.encryptionInfo(),
+  }));
+
+  ipcMain.handle('auth:select', (event, id) => {
+    try {
+      const account = accounts.select(String(id || ''));
+      const { next, payload } = applyAccountSelection(account);
+      return { ok: true, account, mode: next.authMode, microsoft: payload.microsoft };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:add-offline', (event, payload) => {
+    try {
+      const account = accounts.addOffline(payload && payload.name, payload && payload.note);
+      const { next, payload: changed } = applyAccountSelection(account);
+      return { ok: true, account, mode: next.authMode, microsoft: changed.microsoft };
+    } catch (err) {
+      return { ok: false, code: err.code || 'BAD_NAME', error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:update-account', (event, payload) => {
+    try {
+      const account = accounts.updateAccount(String(payload && payload.id || ''), { note: payload && payload.note });
+      send('auth:changed', { mode: settings.get().authMode, microsoft: accounts.summary() });
+      return { ok: true, account };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:remove-account', (event, id) => {
+    try {
+      const result = accounts.removeAccount(String(id || ''));
+      if (!result.ok) return result;
+      const store = accounts.list();
+      const nextAccount = store.find((item) => item.active) || null;
+      if (nextAccount) applyAccountSelection(nextAccount);
+      else {
+        const next = settings.update({ authMode: 'offline' });
+        send('settings:changed', next);
+        send('auth:changed', { mode: next.authMode, microsoft: accounts.summary() });
+      }
+      return { ok: true, activeId: result.activeId };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
 
   ipcMain.handle('auth:login-start', async () => {
     if (pendingAuth) {
@@ -436,8 +573,9 @@ function registerIpc() {
     try {
       const s = settings.get();
       if (s.authMode !== 'microsoft') return { ok: false, code: 'OFFLINE', error: '当前不是 Microsoft 账户' };
-      await accounts.profileFor(Object.assign({}, s, { authMode: 'microsoft' }));
-      return { ok: true, account: accounts.summary() };
+      const result = await accounts.refreshActive();
+      send('auth:changed', { mode: s.authMode, microsoft: accounts.summary() });
+      return { ok: true, account: result.account };
     } catch (err) {
       return { ok: false, code: err.code || 'AUTH_FAILED', error: err.message };
     }
@@ -454,6 +592,309 @@ function registerIpc() {
     }
   });
 
+  async function versionTarget(versionId) {
+    const s = settings.get();
+    const id = String(versionId || s.lastVersion || '').trim();
+    if (!id) {
+      const error = new Error('请先选择目标版本');
+      error.code = 'NO_TARGET';
+      throw error;
+    }
+    const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+    const target = list.find((version) => version.id === id);
+    if (!target) {
+      const error = new Error('目标版本不存在，请刷新版本列表');
+      error.code = 'NO_TARGET';
+      throw error;
+    }
+    return target;
+  }
+
+  function saveError(err) {
+    return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+  }
+
+  ipcMain.handle('saves:list', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = savesCore.list(target);
+      return Object.assign(result, {
+        instance: {
+          id: target.id,
+          mcVersion: target.mcVersion || '',
+          isolation: Boolean(target.isolation),
+          gameDir: target.gameDir,
+        },
+      });
+    } catch (err) {
+      logger.warn('读取存档列表失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:backups', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return {
+        ok: true,
+        targetVersionId: target.id,
+        backupsDir: savesCore.backupsDir(target),
+        backups: savesCore.listBackups(target),
+      };
+    } catch (err) {
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:backup', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return savesCore.backup(target, String(payload.world || ''));
+    } catch (err) {
+      logger.warn('备份存档失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:restore', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = savesCore.restore(target, String(payload.file || ''), {
+        overwrite: Boolean(payload.overwrite),
+        folder: payload.folder ? String(payload.folder) : '',
+      });
+      return Object.assign(result, {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      logger.warn('恢复存档失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:delete', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return Object.assign(savesCore.remove(target, String(payload.world || ''), {
+        backup: payload.backup !== false,
+      }), {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      logger.warn('删除存档失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:export', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = await dialog.showSaveDialog(senderWindow(event), {
+        title: '导出存档',
+        defaultPath: path.join(settings.get().gameDir, `${payload.world || 'world'}.zip`),
+        filters: [{ name: 'ZIP 压缩包', extensions: ['zip'] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+      return savesCore.exportWorld(target, String(payload.world || ''), result.filePath);
+    } catch (err) {
+      logger.warn('导出存档失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:import', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      let filePath = String(payload.path || '').trim();
+      if (!filePath) {
+        const picked = await dialog.showOpenDialog(senderWindow(event), {
+          title: '导入存档 ZIP',
+          defaultPath: settings.get().gameDir,
+          properties: ['openFile'],
+          filters: [{ name: '存档 ZIP', extensions: ['zip'] }],
+        });
+        if (picked.canceled || !picked.filePaths[0]) return { ok: false, canceled: true };
+        filePath = picked.filePaths[0];
+      }
+      const result = savesCore.importWorld(target, filePath, {
+        overwrite: Boolean(payload.overwrite),
+      });
+      return Object.assign(result, {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      logger.warn('导入存档失败:', err.message);
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('saves:open-folder', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const dir = payload.backups ? savesCore.backupsDir(target) : savesCore.savesDir(target);
+      const error = await shell.openPath(dir);
+      if (error) return { ok: false, error };
+      return { ok: true, path: dir };
+    } catch (err) {
+      return saveError(err);
+    }
+  });
+
+  ipcMain.handle('content:list', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const type = String(payload.type || 'resourcepack');
+      const items = content.list(target, type, { world: payload.world ? String(payload.world) : '' });
+      return {
+        ok: true,
+        type,
+        items,
+        worlds: content.listWorlds(target.gameDir),
+        instance: {
+          id: target.id,
+          mcVersion: target.mcVersion || '',
+          isolation: Boolean(target.isolation),
+          gameDir: target.gameDir,
+        },
+      };
+    } catch (err) {
+      logger.warn('读取内容列表失败:', err.message);
+      return { ok: false, code: err.code || 'CONTENT_LIST_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:preview', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.preview(target, String(payload.type || ''), String(payload.id || ''), { world: payload.world ? String(payload.world) : '' });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_PREVIEW_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:set-enabled', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.setEnabled(
+        target,
+        String(payload.type || ''),
+        String(payload.id || ''),
+        Boolean(payload.enabled),
+        { world: payload.world ? String(payload.world) : '' },
+      );
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_TOGGLE_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:import', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      let filePath = String(payload.path || '').trim();
+      if (!filePath) {
+        const picked = await dialog.showOpenDialog(senderWindow(event), {
+          title: '导入游戏内容',
+          defaultPath: settings.get().gameDir,
+          properties: ['openFile'],
+          filters: [{ name: 'ZIP 内容包', extensions: ['zip'] }],
+        });
+        if (picked.canceled || !picked.filePaths[0]) return { ok: false, canceled: true };
+        filePath = picked.filePaths[0];
+      }
+      return content.importFile(target, String(payload.type || ''), filePath, {
+        overwrite: Boolean(payload.overwrite),
+        name: payload.name ? String(payload.name) : '',
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_IMPORT_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:import-base64', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const base64 = String(payload.data || '').replace(/^data:[^;]+;base64,/, '');
+      if (!base64) return { ok: false, code: 'EMPTY_FILE', error: '上传的内容文件为空' };
+      if (base64.length > 280 * 1024 * 1024) {
+        return { ok: false, code: 'CONTENT_TOO_LARGE', error: '内容包超过桌面版上传上限（约 200 MB）' };
+      }
+      return content.importBuffer(target, String(payload.type || ''), Buffer.from(base64, 'base64'), String(payload.name || 'content.zip'), {
+        overwrite: Boolean(payload.overwrite),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_IMPORT_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:remove', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.remove(target, String(payload.type || ''), String(payload.id || ''), {
+        world: payload.world ? String(payload.world) : '',
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_REMOVE_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:open-folder', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const dir = content.openDir(target, String(payload.type || ''));
+      const error = await shell.openPath(dir);
+      if (error) return { ok: false, error };
+      return { ok: true, path: dir };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:search', async (event, payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = await content.searchModrinth(target, String(payload.type || ''), {
+        query: String(payload.query || ''),
+        gameVersion: payload.gameVersion ? String(payload.gameVersion) : '',
+        limit: payload.limit,
+        offset: payload.offset,
+      });
+      return Object.assign({ ok: true }, result);
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_SEARCH_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('content:install', async (event, payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const type = String(payload.type || '');
+      const result = await content.installModrinth(target, type, {
+        projectId: String(payload.projectId || ''),
+        versionId: payload.versionId ? String(payload.versionId) : '',
+        gameVersion: payload.gameVersion ? String(payload.gameVersion) : '',
+        enable: Boolean(payload.enable),
+      }, {
+        onProgress: (progress) => send('content:progress', Object.assign({
+          type,
+          projectId: String(payload.projectId || ''),
+          targetVersionId: target.id,
+        }, progress)),
+      });
+      send('content:done', Object.assign({ type, targetVersionId: target.id }, result));
+      return result;
+    } catch (err) {
+      logger.warn('安装游戏内容失败:', err.message);
+      const failure = { ok: false, code: err.code || 'CONTENT_INSTALL_FAILED', error: err.message };
+      send('content:error', failure);
+      return failure;
+    }
+  });
+
   ipcMain.handle('mods:search', async (event, payload = {}) => {
     try {
       requireOnlineDownloads();
@@ -463,6 +904,11 @@ function registerIpc() {
         source,
         apiKey: source === 'curseforge' ? s.curseforgeApiKey : '',
       }));
+      if (Number(result.totalHits) === 0) {
+        logger.warn(`模组搜索无结果: source=${source} gameVersion=${result.gameVersion || '-'} loader=${result.loader || '-'} query=${JSON.stringify(result.query || '')} category=${result.category || '-'}`);
+      } else {
+        logger.info(`模组搜索: source=${source} gameVersion=${result.gameVersion || '-'} loader=${result.loader || '-'} query=${JSON.stringify(result.query || '')} total=${result.totalHits}`);
+      }
       return Object.assign({ ok: true }, result);
     } catch (err) {
       logger.warn('模组搜索失败:', err.message);
@@ -625,6 +1071,67 @@ function registerIpc() {
       return Object.assign({ ok: true }, result);
     } catch (err) {
       logger.warn('切换模组状态失败:', err.message);
+      return { ok: false, code: err.code || 'MOD_TOGGLE_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:updates', async (event, payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    const targetVersionId = String((payload && payload.targetVersionId) || '').trim();
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请先选择目标版本' };
+    try {
+      const s = settings.get();
+      const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+      const target = list.find((version) => version.id === targetVersionId);
+      if (!target) return { ok: false, code: 'NO_TARGET', error: '目标版本不存在，请刷新版本列表' };
+      const installed = modmanager.list(target);
+      const result = await modsCore.checkUpdates({
+        target,
+        mods: installed.mods,
+        gameVersion: target.mcVersion,
+        loader: modsCore.loaderForVersion(target),
+      });
+      return Object.assign({ ok: true }, result);
+    } catch (err) {
+      logger.warn('检查模组更新失败:', err.message);
+      return { ok: false, code: err.code || 'MOD_UPDATE_CHECK_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:set-enabled-many', async (event, payload = {}) => {
+    const targetVersionId = String((payload && payload.targetVersionId) || '').trim();
+    const filenames = Array.isArray(payload && payload.filenames) ? payload.filenames : [];
+    const enabled = Boolean(payload && payload.enabled);
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请先选择目标版本' };
+    if (!filenames.length || filenames.length > 500) {
+      return { ok: false, code: 'BAD_MOD_FILE', error: '请选择要批量操作的模组' };
+    }
+    try {
+      const s = settings.get();
+      const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+      const target = list.find((version) => version.id === targetVersionId);
+      if (!target) return { ok: false, code: 'NO_TARGET', error: '目标版本不存在，请刷新版本列表' };
+      const changed = [];
+      const failed = [];
+      for (const raw of filenames) {
+        const filename = String(raw || '').trim();
+        if (!filename) continue;
+        try {
+          const result = modmanager.setEnabled(target, filename, enabled);
+          if (result && result.changed) changed.push(filename);
+        } catch (err) {
+          failed.push({ filename, error: err.message });
+        }
+      }
+      return {
+        ok: failed.length === 0,
+        changed,
+        failed,
+        enabled,
+        list: modmanager.list(target),
+      };
+    } catch (err) {
+      logger.warn('批量切换模组状态失败:', err.message);
       return { ok: false, code: err.code || 'MOD_TOGGLE_FAILED', error: err.message };
     }
   });
@@ -878,7 +1385,7 @@ function registerIpc() {
     }
 
     const required = javaCore.requiredJava(meta.jarId || meta.id, meta.javaMajor);
-    const pick = await javaCore.pickFor(required, s.javaPath);
+    const pick = await javaCore.pickFor(required, s.javaPath, false, versionId);
     if (!pick.java) {
       return { ok: false, code: 'NO_JAVA', required, error: `未检测到 Java ${required}，请先安装 Java 运行环境` };
     }
@@ -949,19 +1456,68 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('java:install', async (event, major) => {
+  ipcMain.handle('java:install', async (event, payload) => {
     try {
       requireOnlineDownloads();
+      const request = payload && typeof payload === 'object' ? payload : { major: payload };
       const win = senderWindow(event);
-      const result = await javaCore.installJava(major, (progress) => {
+      const result = await javaCore.installJava(Number(request.major) || 21, (progress) => {
         if (win && !win.isDestroyed()) win.webContents.send('java:progress', progress);
-      });
+      }, null, { vendor: request.vendor });
       return { ok: true, java: result };
     } catch (err) {
       logger.error('安装 Java 失败:', err.message);
       return { ok: false, error: err.message };
     }
   });
+
+  ipcMain.handle('java:add-path', async (event, payload = {}) => {
+    let target = String((payload && payload.path) || '').trim();
+    if (!target) {
+      const result = await dialog.showOpenDialog(senderWindow(event), {
+        title: '选择 Java 可执行文件或安装目录',
+        properties: ['openFile'],
+        filters: platform.isWindows
+          ? [{ name: 'Java 可执行文件', extensions: ['exe'] }, { name: '所有文件', extensions: ['*'] }]
+          : [{ name: '所有文件', extensions: ['*'] }],
+      });
+      if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
+      target = result.filePaths[0];
+    }
+    try {
+      if (fs.statSync(target).isDirectory()) target = javaCore.findJavaExe(target) || target;
+    } catch (err) { /* 交给 inspect 处理 */ }
+    const info = javaCore.inspect(target);
+    if (!info) return { ok: false, code: 'BAD_JAVA', error: '这个文件不是可用的 Java 可执行文件' };
+    const s = settings.get();
+    const extra = Array.from(new Set([...(s.javaExtraPaths || []), info.path]));
+    const ignore = (s.javaIgnorePaths || []).filter((item) => path.resolve(item) !== path.resolve(info.path));
+    settings.update({ javaExtraPaths: extra, javaIgnorePaths: ignore, javaPath: info.path });
+    const list = await javaCore.detect(true);
+    return { ok: true, java: info, list, message: `已添加 Java ${info.major}（${info.vendor}）并设为默认` };
+  });
+
+  ipcMain.handle('java:remove-path', async (event, payload = {}) => {
+    const target = String((payload && payload.path) || '').trim();
+    if (!target) return { ok: false, error: '缺少 Java 路径' };
+    const resolved = path.resolve(target);
+    const s = settings.get();
+    const extra = (s.javaExtraPaths || []).filter((item) => path.resolve(item) !== resolved);
+    const ignore = Array.from(new Set([...(s.javaIgnorePaths || []), resolved]));
+    const patch = { javaExtraPaths: extra, javaIgnorePaths: ignore };
+    const overrides = {};
+    for (const [versionId, javaPath] of Object.entries(s.javaVersionOverrides || {})) {
+      if (path.resolve(String(javaPath || '')) !== resolved) overrides[versionId] = javaPath;
+    }
+    patch.javaVersionOverrides = overrides;
+    if (s.javaPath && path.resolve(s.javaPath) === resolved) patch.javaPath = '';
+    settings.update(patch);
+    const list = await javaCore.detect(true);
+    return { ok: true, list, message: '已从列表中隐藏该 Java，不会删除磁盘文件' };
+  });
+
+  ipcMain.handle('java:vendors', () => ({ ok: true, vendors: Object.values(javaCore.JAVA_VENDORS) }));
+  ipcMain.handle('java:open-folder', async () => openDirectory(config.runtimeDir()));
 
   ipcMain.handle('skin:list', () => {
     try {
@@ -1110,6 +1666,64 @@ function registerIpc() {
     return openDirectory(path.join(config.root(), 'diagnostics'));
   });
 
+  ipcMain.handle('diagnostics:share', async (event, id) => {
+    try {
+      const record = diagnostics.get(id);
+      if (!record) return { ok: false, error: '没有可分享的诊断记录' };
+      const text = diagnostics.shareMarkdown(record);
+      clipboard.writeText(text);
+      return {
+        ok: true,
+        copied: true,
+        text,
+        bytes: Buffer.byteLength(text, 'utf8'),
+        note: '已复制脱敏摘要。公开分享前仍请检查是否包含不想公开的信息。',
+      };
+    } catch (err) {
+      logger.warn('生成诊断分享摘要失败:', err.message);
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('diagnostics:action', async (event, payload = {}) => {
+    const record = diagnostics.get(String((payload && payload.id) || ''));
+    if (!record) return { ok: false, error: '诊断记录不存在' };
+    const actionId = String((payload && payload.actionId) || '');
+    if (actionId !== 'disable-optifine') {
+      return { ok: false, code: 'UNKNOWN_ACTION', error: '不支持这个诊断操作' };
+    }
+    const versionId = String(record.versionId || '').trim();
+    if (!versionId) return { ok: false, code: 'NO_TARGET', error: '诊断记录没有关联游戏版本' };
+    try {
+      const s = settings.get();
+      const versions = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+      const target = versions.find((version) => version.id === versionId);
+      if (!target) return { ok: false, code: 'NO_TARGET', error: '诊断对应的游戏版本已不存在' };
+      const list = modmanager.list(target);
+      const targets = list.mods.filter((mod) => mod.enabled
+        && /optifine/i.test([mod.name, mod.modId, mod.filename].filter(Boolean).join(' ')));
+      if (!targets.length) {
+        return { ok: false, code: 'NOT_FOUND', error: '当前实例没有找到已启用的 OptiFine 文件' };
+      }
+      const changed = [];
+      for (const mod of targets) {
+        const result = modmanager.setEnabled(target, mod.filename, false);
+        if (result && result.changed) changed.push(mod.filename);
+      }
+      return {
+        ok: true,
+        actionId,
+        changed,
+        count: changed.length,
+        list: modmanager.list(target),
+        message: `已禁用 ${changed.length} 个 OptiFine 文件，重新启动游戏即可验证。`,
+      };
+    } catch (err) {
+      logger.warn('执行诊断修复操作失败:', err.message);
+      return { ok: false, code: err.code || 'DIAG_ACTION_FAILED', error: err.message };
+    }
+  });
+
   ipcMain.handle('updater:state', () => updater.snapshot());
 
   ipcMain.handle('updater:check', async () => {
@@ -1138,6 +1752,59 @@ function registerIpc() {
 
   ipcMain.handle('plugins:source', (event, id) => {
     try { return plugins.source(id); } catch (err) { return { ok: false, error: err.message }; }
+  });
+
+  ipcMain.handle('plugins:inspect', async (event, options = {}) => {
+    let filePath = String(options && options.filePath || '').trim();
+    if (!filePath) {
+      const picked = await dialog.showOpenDialog(senderWindow(event), {
+        title: '选择 MinePilot 插件',
+        properties: ['openFile'],
+        filters: [{ name: '插件压缩包', extensions: ['zip'] }],
+      });
+      if (picked.canceled || !picked.filePaths.length) return { ok: false, canceled: true };
+      filePath = picked.filePaths[0];
+    }
+    try {
+      return Object.assign({ ok: true }, plugins.inspect(filePath));
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_INSPECT_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('plugins:inspect-base64', async (event, payload = {}) => {
+    let temp = '';
+    try {
+      const base64 = String(payload.data || '');
+      if (!base64 || base64.length > 36 * 1024 * 1024) throw new Error('插件压缩包过大或为空');
+      temp = path.join(config.cacheDir(), `plugin-inspect-${Date.now()}-${Math.random().toString(16).slice(2)}.zip`);
+      fs.writeFileSync(temp, Buffer.from(base64, 'base64'));
+      return Object.assign({ ok: true }, plugins.inspect(temp));
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_INSPECT_FAILED', error: err.message };
+    } finally {
+      if (temp) { try { fs.rmSync(temp, { force: true }); } catch (err) { /* ignore */ } }
+    }
+  });
+
+  ipcMain.handle('plugins:market', async (event, payload = {}) => {
+    try {
+      const s = settings.get();
+      const url = String(payload.url || s.pluginIndexUrl || '').trim();
+      return await plugins.marketIndex(url);
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_MARKET_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('plugins:market-install', async (event, payload = {}) => {
+    try {
+      const entry = payload && payload.entry;
+      if (!entry) return { ok: false, error: '缺少插件索引条目' };
+      return await plugins.installFromMarket(entry, { overwrite: Boolean(payload.overwrite) });
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_INSTALL_FAILED', error: err.message, plugin: err.plugin || null };
+    }
   });
 
   ipcMain.handle('plugins:install', async (event, options = {}) => {
@@ -1183,6 +1850,52 @@ function registerIpc() {
 
   ipcMain.handle('plugins:open-folder', async () => openDirectory(plugins.pluginsDir()));
 
+  ipcMain.handle('netplay:state', async () => ({
+    ok: true,
+    profiles: netplay.profiles(settings.get()),
+    processes: netplay.snapshot(),
+    addresses: netplay.localAddresses(),
+    guides: netplay.guides(),
+    platform: process.platform,
+  }));
+
+  ipcMain.handle('netplay:start', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const profile = netplay.profiles(settings.get()).find((item) => item.id === String(payload.id || ''));
+      if (!profile) return { ok: false, error: '联机配置不存在，请先保存配置' };
+      const win = senderWindow(event);
+      const emit = (message) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(message.type === 'log' ? 'netplay:log' : 'netplay:state', message.payload);
+        }
+      };
+      const result = netplay.start(profile, {
+        gameDir: target.gameDir || target.dir || '',
+        player: settings.get().offlineName || '',
+      }, emit);
+      return Object.assign({ ok: true }, result, { addresses: netplay.localAddresses() });
+    } catch (err) {
+      logger.warn('启动联机工具失败:', err.message);
+      return { ok: false, code: err.code || 'NETPLAY_START_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('netplay:stop', async (event, id) => netplay.stop(String(id || '')));
+  ipcMain.handle('netplay:logs', async (event, id) => ({ ok: true, logs: netplay.logs(String(id || '')) }));
+
+  ipcMain.handle('netplay:browse', async (event) => {
+    const picked = await dialog.showOpenDialog(senderWindow(event), {
+      title: '选择联机工具可执行文件',
+      properties: ['openFile'],
+      filters: process.platform === 'win32'
+        ? [{ name: '可执行程序', extensions: ['exe'] }, { name: '所有文件', extensions: ['*'] }]
+        : [{ name: '所有文件', extensions: ['*'] }],
+    });
+    if (picked.canceled || !picked.filePaths.length) return { ok: false, canceled: true };
+    return { ok: true, filePath: picked.filePaths[0] };
+  });
+
   ipcMain.handle('updater:install', async () => {
     try {
       const target = updater.installTarget();
@@ -1212,6 +1925,26 @@ function registerIpc() {
       return { ok: true, text: buffer.toString('utf8') };
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('logs:read', async () => {
+    try {
+      const target = path.join(config.logsDir(), 'minepilot.log');
+      const stat = fs.statSync(target);
+      const size = Math.min(stat.size, 400 * 1024);
+      const fd = fs.openSync(target, 'r');
+      const buffer = Buffer.alloc(size);
+      fs.readSync(fd, buffer, 0, size, stat.size - size);
+      fs.closeSync(fd);
+      return {
+        ok: true,
+        path: target,
+        content: diagnostics.redact(buffer.toString('utf8')),
+        truncated: stat.size > size,
+      };
+    } catch (err) {
+      return { ok: false, error: err.message, path: path.join(config.logsDir(), 'minepilot.log') };
     }
   });
 
@@ -1318,7 +2051,7 @@ function createWindow() {
 
 async function captureScreenshot() {
   try {
-    await new Promise((resolve) => setTimeout(resolve, 2600));
+    await new Promise((resolve) => setTimeout(resolve, Number(process.env.MINEPILOT_SHOT_DELAY) || 2600));
     if (dumpTarget) {
       try {
         await mainWindow.webContents.executeJavaScript(`window.__mpClickPlugin = ${clickPlugin ? 'true' : 'false'}; window.__mpClickUpdate = ${clickUpdate ? 'true' : 'false'}; window.__mpToggleOnline = ${toggleOnline ? 'true' : 'false'}; true;`);
@@ -1452,6 +2185,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+app.on('before-quit', () => {
+  try { netplay.stopAll(); } catch (err) { /* ignore */ }
 });
 
 process.on('uncaughtException', (err) => {

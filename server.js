@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /**
  * MinePilot Web 后端。
@@ -29,6 +29,7 @@ function requireOnlineDownloads() {
 }
 const logger = require('./src/core/logger');
 const versionsCore = require('./src/core/versions');
+const savesCore = require('./src/core/saves');
 const modsCore = require('./src/core/mods');
 const modmanager = require('./src/core/modmanager');
 const modpack = require('./src/core/modpack');
@@ -47,6 +48,8 @@ const platform = require('./src/core/platform');
 const diagnostics = require('./src/core/diagnostics');
 const updater = require('./src/core/updater');
 const plugins = require('./src/core/plugins');
+const content = require('./src/core/content');
+const netplay = require('./src/core/netplay');
 
 const APP_ROOT = __dirname;
 const RENDERER_DIR = path.join(APP_ROOT, 'renderer');
@@ -110,6 +113,16 @@ function broadcast(channel, payload) {
       clients.delete(response);
     }
   }
+}
+
+function applyAccountSelection(account) {
+  const patch = account && account.type === 'microsoft'
+    ? { authMode: 'microsoft' }
+    : { authMode: 'offline', offlineName: (account && account.name) || settings.get().offlineName };
+  const next = settings.update(patch);
+  broadcast('settings:changed', next);
+  broadcast('auth:changed', { mode: next.authMode, microsoft: accounts.summary() });
+  return next;
 }
 
 function shutdownNow() {
@@ -336,6 +349,16 @@ function analyzeGameExit(info) {
   }
 }
 
+async function versionTarget(versionId) {
+  const s = settings.get();
+  const id = String(versionId || s.lastVersion || '').trim();
+  if (!id) throw Object.assign(new Error('请先选择目标版本'), { code: 'NO_TARGET' });
+  const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+  const target = list.find((version) => version.id === id);
+  if (!target) throw Object.assign(new Error('目标版本不存在，请刷新版本列表'), { code: 'NO_TARGET' });
+  return target;
+}
+
 const handlers = {
   'app:info': async () => ({
     name: 'MinePilot',
@@ -365,6 +388,60 @@ const handlers = {
     mode: settings.get().authMode,
     microsoft: accounts.summary(),
   }),
+
+  'auth:accounts': async () => ({
+    ok: true,
+    activeId: accounts.summary().activeId || '',
+    accounts: accounts.list(),
+    encryption: accounts.encryptionInfo(),
+  }),
+
+  'auth:select': async (id) => {
+    try {
+      const account = accounts.select(String(id || ''));
+      const next = applyAccountSelection(account);
+      return { ok: true, account, mode: next.authMode, microsoft: accounts.summary() };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
+
+  'auth:add-offline': async (payload) => {
+    try {
+      const account = accounts.addOffline(payload && payload.name, payload && payload.note);
+      const next = applyAccountSelection(account);
+      return { ok: true, account, mode: next.authMode, microsoft: accounts.summary() };
+    } catch (err) {
+      return { ok: false, code: err.code || 'BAD_NAME', error: err.message };
+    }
+  },
+
+  'auth:update-account': async (payload) => {
+    try {
+      const account = accounts.updateAccount(String(payload && payload.id || ''), { note: payload && payload.note });
+      broadcast('auth:changed', { mode: settings.get().authMode, microsoft: accounts.summary() });
+      return { ok: true, account };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
+
+  'auth:remove-account': async (id) => {
+    try {
+      const result = accounts.removeAccount(String(id || ''));
+      if (!result.ok) return result;
+      const nextAccount = accounts.list().find((item) => item.active) || null;
+      if (nextAccount) applyAccountSelection(nextAccount);
+      else {
+        const next = settings.update({ authMode: 'offline' });
+        broadcast('settings:changed', next);
+        broadcast('auth:changed', { mode: next.authMode, microsoft: accounts.summary() });
+      }
+      return { ok: true, activeId: result.activeId };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
 
   'auth:login-start': async () => {
     if (pendingAuth) {
@@ -450,8 +527,9 @@ const handlers = {
     try {
       const s = settings.get();
       if (s.authMode !== 'microsoft') return { ok: false, code: 'OFFLINE', error: '当前不是 Microsoft 账户' };
-      await accounts.profileFor(Object.assign({}, s, { authMode: 'microsoft' }));
-      return { ok: true, account: accounts.summary() };
+      const result = await accounts.refreshActive();
+      broadcast('auth:changed', { mode: s.authMode, microsoft: accounts.summary() });
+      return { ok: true, account: result.account };
     } catch (err) {
       return { ok: false, code: err.code || 'AUTH_FAILED', error: err.message };
     }
@@ -468,6 +546,254 @@ const handlers = {
     }
   },
 
+  'saves:list': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return Object.assign(savesCore.list(target), {
+        instance: {
+          id: target.id,
+          mcVersion: target.mcVersion || '',
+          isolation: Boolean(target.isolation),
+          gameDir: target.gameDir,
+        },
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:backups': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return {
+        ok: true,
+        targetVersionId: target.id,
+        backupsDir: savesCore.backupsDir(target),
+        backups: savesCore.listBackups(target),
+      };
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:backup': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return savesCore.backup(target, String(payload.world || ''));
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:restore': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = savesCore.restore(target, String(payload.file || ''), {
+        overwrite: Boolean(payload.overwrite),
+        folder: payload.folder ? String(payload.folder) : '',
+      });
+      return Object.assign(result, {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:delete': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return Object.assign(savesCore.remove(target, String(payload.world || ''), {
+        backup: payload.backup !== false,
+      }), {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:export': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const dir = path.join(config.cacheDir(), 'save-export');
+      fs.mkdirSync(dir, { recursive: true });
+      const fileName = `${String(payload.world || 'world').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')}.zip`;
+      const output = path.join(dir, fileName);
+      const result = savesCore.exportWorld(target, String(payload.world || ''), output);
+      return Object.assign(result, {
+        downloadBase64: fs.readFileSync(output).toString('base64'),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'saves:import': async (payload = {}) => {
+    let tempFile = '';
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      let filePath = String(payload.path || '').trim();
+      if (!filePath && payload.dataBase64) {
+        const base64 = String(payload.dataBase64).replace(/^data:[^;]+;base64,/, '');
+        if (base64.length > 1400 * 1024 * 1024) {
+          return { ok: false, code: 'SAVE_TOO_LARGE', error: '存档压缩包超过浏览器版上传上限（约 1 GB），请使用桌面版导入' };
+        }
+        const buffer = Buffer.from(base64, 'base64');
+        if (!buffer.length) return { ok: false, code: 'BAD_ZIP', error: '上传的存档压缩包为空' };
+        const dir = path.join(config.cacheDir(), 'save-import');
+        fs.mkdirSync(dir, { recursive: true });
+        tempFile = path.join(dir, `upload-${Date.now().toString(36)}.zip`);
+        fs.writeFileSync(tempFile, buffer);
+        filePath = tempFile;
+      }
+      if (!filePath) return { ok: false, code: 'NO_SAVE', error: '没有选择存档压缩包' };
+      const result = savesCore.importWorld(target, filePath, {
+        overwrite: Boolean(payload.overwrite),
+      });
+      return Object.assign(result, {
+        saves: savesCore.list(target).saves,
+        backups: savesCore.listBackups(target),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    } finally {
+      if (tempFile) {
+        try { fs.rmSync(tempFile, { force: true }); } catch (err) { /* ignore */ }
+      }
+    }
+  },
+
+  'saves:open-folder': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const dir = payload.backups ? savesCore.backupsDir(target) : savesCore.savesDir(target);
+      return await openPath(dir);
+    } catch (err) {
+      return { ok: false, code: err.code || 'SAVE_FAILED', error: err.message };
+    }
+  },
+
+  'content:list': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const type = String(payload.type || 'resourcepack');
+      return {
+        ok: true,
+        type,
+        items: content.list(target, type, { world: payload.world ? String(payload.world) : '' }),
+        worlds: content.listWorlds(target.gameDir),
+        instance: {
+          id: target.id,
+          mcVersion: target.mcVersion || '',
+          isolation: Boolean(target.isolation),
+          gameDir: target.gameDir,
+        },
+      };
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_LIST_FAILED', error: err.message };
+    }
+  },
+
+  'content:preview': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.preview(target, String(payload.type || ''), String(payload.id || ''), { world: payload.world ? String(payload.world) : '' });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_PREVIEW_FAILED', error: err.message };
+    }
+  },
+
+  'content:set-enabled': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.setEnabled(
+        target,
+        String(payload.type || ''),
+        String(payload.id || ''),
+        Boolean(payload.enabled),
+        { world: payload.world ? String(payload.world) : '' },
+      );
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_TOGGLE_FAILED', error: err.message };
+    }
+  },
+
+  'content:import': async () => ({ ok: false, code: 'WEB_IMPORT_UNSUPPORTED', error: '浏览器版请使用文件上传导入内容包' }),
+
+  'content:import-base64': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const base64 = String(payload.data || '').replace(/^data:[^;]+;base64,/, '');
+      if (!base64) return { ok: false, code: 'EMPTY_FILE', error: '上传的内容文件为空' };
+      if (base64.length > 18 * 1024 * 1024) {
+        return { ok: false, code: 'CONTENT_TOO_LARGE', error: '浏览器版单次上传上限约 13 MB，请使用桌面版导入大文件' };
+      }
+      return content.importBuffer(target, String(payload.type || ''), Buffer.from(base64, 'base64'), String(payload.name || 'content.zip'), {
+        overwrite: Boolean(payload.overwrite),
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_IMPORT_FAILED', error: err.message };
+    }
+  },
+
+  'content:remove': async (payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      return content.remove(target, String(payload.type || ''), String(payload.id || ''), {
+        world: payload.world ? String(payload.world) : '',
+      });
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_REMOVE_FAILED', error: err.message };
+    }
+  },
+
+  'content:open-folder': async () => ({ ok: false, code: 'WEB_NO_FOLDER', error: '浏览器版无法打开本地文件夹' }),
+
+  'content:search': async (payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const result = await content.searchModrinth(target, String(payload.type || ''), {
+        query: String(payload.query || ''),
+        gameVersion: payload.gameVersion ? String(payload.gameVersion) : '',
+        limit: payload.limit,
+        offset: payload.offset,
+      });
+      return Object.assign({ ok: true }, result);
+    } catch (err) {
+      return { ok: false, code: err.code || 'CONTENT_SEARCH_FAILED', error: err.message };
+    }
+  },
+
+  'content:install': async (payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const type = String(payload.type || '');
+      const result = await content.installModrinth(target, type, {
+        projectId: String(payload.projectId || ''),
+        versionId: payload.versionId ? String(payload.versionId) : '',
+        gameVersion: payload.gameVersion ? String(payload.gameVersion) : '',
+        enable: Boolean(payload.enable),
+      }, {
+        onProgress: (progress) => broadcast('content:progress', Object.assign({
+          type,
+          projectId: String(payload.projectId || ''),
+          targetVersionId: target.id,
+        }, progress)),
+      });
+      broadcast('content:done', Object.assign({ type, targetVersionId: target.id }, result));
+      return result;
+    } catch (err) {
+      const failure = { ok: false, code: err.code || 'CONTENT_INSTALL_FAILED', error: err.message };
+      broadcast('content:error', failure);
+      return failure;
+    }
+  },
+
   'mods:search': async (payload = {}) => {
     if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
     try {
@@ -477,6 +803,11 @@ const handlers = {
         source,
         apiKey: source === 'curseforge' ? s.curseforgeApiKey : '',
       }));
+      if (Number(result.totalHits) === 0) {
+        logger.warn(`模组搜索无结果: source=${source} gameVersion=${result.gameVersion || '-'} loader=${result.loader || '-'} query=${JSON.stringify(result.query || '')} category=${result.category || '-'}`);
+      } else {
+        logger.info(`模组搜索: source=${source} gameVersion=${result.gameVersion || '-'} loader=${result.loader || '-'} query=${JSON.stringify(result.query || '')} total=${result.totalHits}`);
+      }
       return Object.assign({ ok: true }, result);
     } catch (err) {
       logger.warn('模组搜索失败:', err.message);
@@ -606,6 +937,60 @@ const handlers = {
       const target = list.find((version) => version.id === targetVersionId);
       if (!target) return { ok: false, code: 'NO_TARGET', error: '目标版本不存在，请刷新版本列表' };
       return Object.assign({ ok: true }, modmanager.setEnabled(target, filename, enabled));
+    } catch (err) {
+      return { ok: false, code: err.code || 'MOD_TOGGLE_FAILED', error: err.message };
+    }
+  },
+
+  'mods:updates': async (payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    const targetVersionId = String((payload && payload.targetVersionId) || '').trim();
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请先选择目标版本' };
+    try {
+      const target = await versionTarget(targetVersionId);
+      const installed = modmanager.list(target);
+      const result = await modsCore.checkUpdates({
+        target,
+        mods: installed.mods,
+        gameVersion: target.mcVersion,
+        loader: modsCore.loaderForVersion(target),
+      });
+      return Object.assign({ ok: true }, result);
+    } catch (err) {
+      logger.warn('检查模组更新失败:', err.message);
+      return { ok: false, code: err.code || 'MOD_UPDATE_CHECK_FAILED', error: err.message };
+    }
+  },
+
+  'mods:set-enabled-many': async (payload = {}) => {
+    const targetVersionId = String((payload && payload.targetVersionId) || '').trim();
+    const filenames = Array.isArray(payload && payload.filenames) ? payload.filenames : [];
+    const enabled = Boolean(payload && payload.enabled);
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请先选择目标版本' };
+    if (!filenames.length || filenames.length > 500) {
+      return { ok: false, code: 'BAD_MOD_FILE', error: '请选择要批量操作的模组' };
+    }
+    try {
+      const target = await versionTarget(targetVersionId);
+      const changed = [];
+      const failed = [];
+      for (const raw of filenames) {
+        const filename = String(raw || '').trim();
+        if (!filename) continue;
+        try {
+          const result = modmanager.setEnabled(target, filename, enabled);
+          if (result && result.changed) changed.push(filename);
+        } catch (err) {
+          failed.push({ filename, error: err.message });
+        }
+      }
+      return {
+        ok: failed.length === 0,
+        changed,
+        failed,
+        enabled,
+        list: modmanager.list(target),
+      };
     } catch (err) {
       return { ok: false, code: err.code || 'MOD_TOGGLE_FAILED', error: err.message };
     }
@@ -822,7 +1207,7 @@ const handlers = {
     }
 
     const required = javaCore.requiredJava(meta.jarId || meta.id, meta.javaMajor);
-    const pick = await javaCore.pickFor(required, s.javaPath);
+    const pick = await javaCore.pickFor(required, s.javaPath, false, versionId);
     if (!pick.java) {
       return { ok: false, code: 'NO_JAVA', required, error: `未检测到 Java ${required}，请先安装 Java 运行环境` };
     }
@@ -886,16 +1271,55 @@ const handlers = {
     }
   },
 
-  'java:install': async (major) => {
+  'java:install': async (payload) => {
     try {
       requireOnlineDownloads();
-      const result = await javaCore.installJava(major, (progress) => broadcast('java:progress', progress));
+      const request = payload && typeof payload === 'object' ? payload : { major: payload };
+      const result = await javaCore.installJava(Number(request.major) || 21, (progress) => broadcast('java:progress', progress), null, { vendor: request.vendor });
       return { ok: true, java: result };
     } catch (err) {
       logger.error('安装 Java 失败:', err.message);
       return { ok: false, error: err.message };
     }
   },
+
+  'java:add-path': async (payload = {}) => {
+    let target = String((payload && payload.path) || '').trim();
+    if (!target) return { ok: false, code: 'WEB_UNSUPPORTED', error: '浏览器版不能打开文件选择器，请填写 Java 可执行文件路径' };
+    try {
+      if (fs.statSync(target).isDirectory()) target = javaCore.findJavaExe(target) || target;
+    } catch (err) { /* 交给 inspect 处理 */ }
+    const info = javaCore.inspect(target);
+    if (!info) return { ok: false, code: 'BAD_JAVA', error: '这个文件不是可用的 Java 可执行文件' };
+    const s = settings.get();
+    const extra = Array.from(new Set([...(s.javaExtraPaths || []), info.path]));
+    const ignore = (s.javaIgnorePaths || []).filter((item) => path.resolve(item) !== path.resolve(info.path));
+    settings.update({ javaExtraPaths: extra, javaIgnorePaths: ignore, javaPath: info.path });
+    const list = await javaCore.detect(true);
+    return { ok: true, java: info, list, message: `已添加 Java ${info.major}（${info.vendor}）并设为默认` };
+  },
+
+  'java:remove-path': async (payload = {}) => {
+    const target = String((payload && payload.path) || '').trim();
+    if (!target) return { ok: false, error: '缺少 Java 路径' };
+    const resolved = path.resolve(target);
+    const s = settings.get();
+    const extra = (s.javaExtraPaths || []).filter((item) => path.resolve(item) !== resolved);
+    const ignore = Array.from(new Set([...(s.javaIgnorePaths || []), resolved]));
+    const patch = { javaExtraPaths: extra, javaIgnorePaths: ignore };
+    const overrides = {};
+    for (const [versionId, javaPath] of Object.entries(s.javaVersionOverrides || {})) {
+      if (path.resolve(String(javaPath || '')) !== resolved) overrides[versionId] = javaPath;
+    }
+    patch.javaVersionOverrides = overrides;
+    if (s.javaPath && path.resolve(s.javaPath) === resolved) patch.javaPath = '';
+    settings.update(patch);
+    const list = await javaCore.detect(true);
+    return { ok: true, list, message: '已从列表中隐藏该 Java，不会删除磁盘文件' };
+  },
+
+  'java:vendors': async () => ({ ok: true, vendors: Object.values(javaCore.JAVA_VENDORS) }),
+  'java:open-folder': async () => openPath(config.runtimeDir()),
 
   'skin:list': async () => {
     try {
@@ -1026,6 +1450,58 @@ const handlers = {
 
   'diagnostics:open-folder': async () => openPath(path.join(config.root(), 'diagnostics')),
 
+  'diagnostics:share': async (id) => {
+    try {
+      const record = diagnostics.get(id);
+      if (!record) return { ok: false, error: '没有可分享的诊断记录' };
+      const text = diagnostics.shareMarkdown(record);
+      return {
+        ok: true,
+        copied: false,
+        text,
+        bytes: Buffer.byteLength(text, 'utf8'),
+        note: '浏览器版无法直接写系统剪贴板，已返回脱敏摘要，请手动复制。',
+      };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
+
+  'diagnostics:action': async (payload = {}) => {
+    const record = diagnostics.get(String((payload && payload.id) || ''));
+    if (!record) return { ok: false, error: '诊断记录不存在' };
+    const actionId = String((payload && payload.actionId) || '');
+    if (actionId !== 'disable-optifine') {
+      return { ok: false, code: 'UNKNOWN_ACTION', error: '不支持这个诊断操作' };
+    }
+    const versionId = String(record.versionId || '').trim();
+    if (!versionId) return { ok: false, code: 'NO_TARGET', error: '诊断记录没有关联游戏版本' };
+    try {
+      const target = await versionTarget(versionId);
+      const list = modmanager.list(target);
+      const targets = list.mods.filter((mod) => mod.enabled
+        && /optifine/i.test([mod.name, mod.modId, mod.filename].filter(Boolean).join(' ')));
+      if (!targets.length) {
+        return { ok: false, code: 'NOT_FOUND', error: '当前实例没有找到已启用的 OptiFine 文件' };
+      }
+      const changed = [];
+      for (const mod of targets) {
+        const result = modmanager.setEnabled(target, mod.filename, false);
+        if (result && result.changed) changed.push(mod.filename);
+      }
+      return {
+        ok: true,
+        actionId,
+        changed,
+        count: changed.length,
+        list: modmanager.list(target),
+        message: `已禁用 ${changed.length} 个 OptiFine 文件，重新启动游戏即可验证。`,
+      };
+    } catch (err) {
+      return { ok: false, code: err.code || 'DIAG_ACTION_FAILED', error: err.message };
+    }
+  },
+
   'updater:state': async () => updater.snapshot(),
 
   'updater:check': async () => {
@@ -1061,6 +1537,46 @@ const handlers = {
     try { return plugins.source(id); } catch (err) { return { ok: false, error: err.message }; }
   },
 
+  'plugins:inspect': async () => ({
+    ok: false,
+    browser: true,
+    error: '浏览器版请选择插件 ZIP 文件上传检查。',
+  }),
+
+  'plugins:inspect-base64': async (payload = {}) => {
+    let temp = '';
+    try {
+      const base64 = String(payload.data || '');
+      if (!base64 || base64.length > 36 * 1024 * 1024) throw new Error('插件压缩包过大或为空');
+      temp = path.join(config.cacheDir(), `plugin-inspect-${Date.now()}-${Math.random().toString(16).slice(2)}.zip`);
+      fs.writeFileSync(temp, Buffer.from(base64, 'base64'));
+      return Object.assign({ ok: true }, plugins.inspect(temp));
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_INSPECT_FAILED', error: err.message };
+    } finally {
+      if (temp) { try { fs.rmSync(temp, { force: true }); } catch (err) { /* ignore */ } }
+    }
+  },
+
+  'plugins:market': async (payload = {}) => {
+    try {
+      const s = settings.get();
+      const url = String(payload.url || s.pluginIndexUrl || '').trim();
+      return await plugins.marketIndex(url);
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_MARKET_FAILED', error: err.message };
+    }
+  },
+
+  'plugins:market-install': async (payload = {}) => {
+    try {
+      if (!payload.entry) return { ok: false, error: '缺少插件索引条目' };
+      return await plugins.installFromMarket(payload.entry, { overwrite: Boolean(payload.overwrite) });
+    } catch (err) {
+      return { ok: false, code: err.code || 'PLUGIN_INSTALL_FAILED', error: err.message, plugin: err.plugin || null };
+    }
+  },
+
   'plugins:install': async () => ({
     ok: false,
     browser: true,
@@ -1092,6 +1608,27 @@ const handlers = {
 
   'plugins:open-folder': async () => openPath(plugins.pluginsDir()),
 
+  'netplay:state': async () => ({
+    ok: true,
+    desktopOnly: true,
+    profiles: settings.get().netplayProfiles || [],
+    processes: [],
+    addresses: [],
+    guides: netplay.guides(),
+    platform: 'web',
+    error: '浏览器版无法启动本机联机工具；请使用桌面版，或按页面引导手动运行。',
+  }),
+
+  'netplay:start': async () => ({
+    ok: false,
+    desktopOnly: true,
+    error: '浏览器版不能启动本机程序。请使用桌面版，或手动运行 Terracotta / EasyTier / frp。',
+  }),
+
+  'netplay:stop': async () => ({ ok: false, desktopOnly: true, error: '浏览器版不能停止本机程序。' }),
+  'netplay:logs': async () => ({ ok: true, logs: [] }),
+  'netplay:browse': async () => ({ ok: false, browser: true, error: '浏览器版请手动填写本机程序路径。' }),
+
   'logs:tail': async (filePath) => {
     try {
       const target = filePath || path.join(config.logsDir(), 'minepilot.log');
@@ -1104,6 +1641,26 @@ const handlers = {
       return { ok: true, text: buffer.toString('utf8') };
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  },
+
+  'logs:read': async () => {
+    try {
+      const target = path.join(config.logsDir(), 'minepilot.log');
+      const stat = fs.statSync(target);
+      const size = Math.min(stat.size, 400 * 1024);
+      const fd = fs.openSync(target, 'r');
+      const buffer = Buffer.alloc(size);
+      fs.readSync(fd, buffer, 0, size, stat.size - size);
+      fs.closeSync(fd);
+      return {
+        ok: true,
+        path: target,
+        content: diagnostics.redact(buffer.toString('utf8')),
+        truncated: stat.size > size,
+      };
+    } catch (err) {
+      return { ok: false, error: err.message, path: path.join(config.logsDir(), 'minepilot.log') };
     }
   },
 

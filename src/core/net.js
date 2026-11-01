@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const logger = require('./logger');
 
-const USER_AGENT = 'MinePilot/1.8.0';
+const USER_AGENT = 'MinePilot/1.10.0';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

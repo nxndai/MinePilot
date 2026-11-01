@@ -305,11 +305,11 @@ function localHeader(entry) {
   header.writeUInt32LE(0x04034b50, 0);
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(0x0800, 6);
-  header.writeUInt16LE(0, 8);
+  header.writeUInt16LE(entry.method || 0, 8);
   header.writeUInt16LE(entry.time, 10);
   header.writeUInt16LE(entry.date, 12);
   header.writeUInt32LE(entry.crc, 14);
-  header.writeUInt32LE(entry.size, 18);
+  header.writeUInt32LE(entry.compressedSize, 18);
   header.writeUInt32LE(entry.size, 22);
   header.writeUInt16LE(entry.nameBuffer.length, 26);
   header.writeUInt16LE(0, 28);
@@ -322,11 +322,11 @@ function centralHeader(entry) {
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(20, 6);
   header.writeUInt16LE(0x0800, 8);
-  header.writeUInt16LE(0, 10);
+  header.writeUInt16LE(entry.method || 0, 10);
   header.writeUInt16LE(entry.time, 12);
   header.writeUInt16LE(entry.date, 14);
   header.writeUInt32LE(entry.crc, 16);
-  header.writeUInt32LE(entry.size, 20);
+  header.writeUInt32LE(entry.compressedSize, 20);
   header.writeUInt32LE(entry.size, 24);
   header.writeUInt16LE(entry.nameBuffer.length, 28);
   header.writeUInt16LE(0, 30);
@@ -339,12 +339,13 @@ function centralHeader(entry) {
 }
 
 /**
- * 创建一个 store 模式的 ZIP。entries: [{name, filePath, data, mtime}]
- * 使用流式读取文件，避免把整个整合包读入内存。
+ * 创建一个 ZIP。entries: [{name, filePath, data, mtime}]
+ * 默认 store 模式；options.compress=true 时使用 deflate（安装包用）。
  */
 function createZip(entries, outputPath, options = {}) {
   const list = Array.isArray(entries) ? entries : [];
   const onEntry = typeof options.onEntry === 'function' ? options.onEntry : null;
+  const compress = options.compress === true;
   const outDir = path.dirname(path.resolve(outputPath));
   fs.mkdirSync(outDir, { recursive: true });
   const temp = `${outputPath}.${process.pid}.tmp`;
@@ -360,24 +361,40 @@ function createZip(entries, outputPath, options = {}) {
       seen.add(name);
       const nameBuffer = Buffer.from(name, 'utf8');
       const dt = dosDateTime(raw && raw.mtime);
-      let crc = 0;
-      let size = 0;
+      let content = null;
       if (raw && raw.data != null) {
-        const data = Buffer.isBuffer(raw.data) ? raw.data : Buffer.from(String(raw.data), 'utf8');
-        crc = crc32Buffer(data);
-        size = data.length;
+        content = Buffer.isBuffer(raw.data) ? raw.data : Buffer.from(String(raw.data), 'utf8');
       } else if (raw && raw.filePath) {
-        const computed = crc32FileChunks(raw.filePath);
-        crc = computed.crc;
-        size = computed.size;
+        // 压缩时必须先读入内存；store 模式仍使用流式读取。
+        if (compress) content = fs.readFileSync(raw.filePath);
       } else {
         throw new Error(`压缩包条目没有内容：${name}`);
       }
-      const entry = { nameBuffer, crc, size, time: dt.time, date: dt.date, offset };
+      let crc = 0;
+      let size = 0;
+      if (content) {
+        crc = crc32Buffer(content);
+        size = content.length;
+      } else {
+        const computed = crc32FileChunks(raw.filePath);
+        crc = computed.crc;
+        size = computed.size;
+      }
+      const stored = compress ? zlib.deflateRawSync(content, { level: 9 }) : content;
+      const method = compress ? 8 : 0;
+      const entry = {
+        nameBuffer,
+        crc,
+        size,
+        compressedSize: stored ? stored.length : size,
+        method,
+        time: dt.time,
+        date: dt.date,
+        offset,
+      };
       writeAll(fd, localHeader(entry));
-      if (raw && raw.data != null) {
-        const data = Buffer.isBuffer(raw.data) ? raw.data : Buffer.from(String(raw.data), 'utf8');
-        writeAll(fd, data);
+      if (stored) {
+        writeAll(fd, stored);
       } else {
         const srcFd = fs.openSync(raw.filePath, 'r');
         try {
@@ -391,7 +408,7 @@ function createZip(entries, outputPath, options = {}) {
           fs.closeSync(srcFd);
         }
       }
-      offset += 30 + nameBuffer.length + size;
+      offset += 30 + nameBuffer.length + entry.compressedSize;
       totalBytes += size;
       central.push(entry);
       if (onEntry) onEntry(central.length, list.length, name);

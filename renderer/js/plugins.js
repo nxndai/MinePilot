@@ -9,12 +9,22 @@
     workerUrls: new Map(),
     commands: [],
     errors: new Map(),
+    panels: new Map(),
+    market: [],
+    marketUrl: '',
+    marketBusy: false,
     loaded: false,
     installing: false,
   };
 
-  const ALLOWED_EVENTS = new Set(['settings:changed', 'launch:exit', 'crash:detected']);
-  const ALLOWED_INVOKE = new Set(['app:info', 'settings:get', 'versions:list', 'monitor:state', 'diagnostics:latest', 'java:detect']);
+  const ALLOWED_EVENTS = new Set([
+    'settings:changed', 'launch:exit', 'crash:detected',
+    'download:started', 'download:progress', 'download:completed',
+  ]);
+  const ALLOWED_INVOKE = new Set([
+    'app:info', 'settings:get', 'versions:list', 'monitor:state', 'diagnostics:latest', 'java:detect',
+    'mods:list', 'content:list',
+  ]);
 
   function esc(value) {
     return MP.esc ? MP.esc(String(value == null ? '' : value)) : String(value == null ? '' : value);
@@ -41,6 +51,76 @@ const pending = new Map();
 let sequence = 0;
 function post(message) { self.postMessage(message); }
 function safeText(value, max) { return String(value == null ? '' : value).slice(0, max || 500); }
+const NETWORK_ALLOWED = ${JSON.stringify(Array.isArray(plugin.permissions && plugin.permissions.network) ? plugin.permissions.network : [])};
+function pluginHostAllowed(input) {
+  if (NETWORK_ALLOWED.includes('*')) return true;
+  let host = '';
+  try {
+    const raw = input && typeof input === 'object' && input.url ? input.url : String(input || '');
+    host = new URL(raw, self.location.href).hostname.toLowerCase();
+  } catch (err) {
+    return false;
+  }
+  return NETWORK_ALLOWED.some((pattern) => {
+    const rule = String(pattern || '').toLowerCase();
+    if (rule.startsWith('*.')) {
+      const base = rule.slice(2);
+      return host === base || host.endsWith('.' + base);
+    }
+    return host === rule;
+  });
+}
+function assertNetwork(input) {
+  if (!pluginHostAllowed(input)) throw new Error('插件没有访问该域名的联网权限，请在 plugin.json 的 permissions.network 中声明');
+}
+const nativeFetch = typeof self.fetch === 'function' ? self.fetch.bind(self) : null;
+if (nativeFetch) {
+  self.fetch = function (input, init) {
+    try { assertNetwork(input); } catch (err) { return Promise.reject(err); }
+    return nativeFetch(input, init);
+  };
+}
+const NativeXHR = self.XMLHttpRequest;
+if (NativeXHR) {
+  self.XMLHttpRequest = function () {
+    const xhr = new NativeXHR();
+    const nativeOpen = xhr.open;
+    xhr.open = function (method, url) {
+      assertNetwork(url);
+      return nativeOpen.apply(xhr, arguments);
+    };
+    return xhr;
+  };
+  self.XMLHttpRequest.prototype = NativeXHR.prototype;
+}
+if (typeof self.WebSocket === 'function') {
+  const NativeWebSocket = self.WebSocket;
+  self.WebSocket = function (url, protocols) {
+    assertNetwork(url);
+    return protocols === undefined ? new NativeWebSocket(url) : new NativeWebSocket(url, protocols);
+  };
+  self.WebSocket.prototype = NativeWebSocket.prototype;
+  for (const key of ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']) {
+    if (NativeWebSocket[key] !== undefined) self.WebSocket[key] = NativeWebSocket[key];
+  }
+}
+if (typeof self.EventSource === 'function') {
+  const NativeEventSource = self.EventSource;
+  self.EventSource = function (url, config) {
+    assertNetwork(url);
+    return new NativeEventSource(url, config);
+  };
+  self.EventSource.prototype = NativeEventSource.prototype;
+}
+if (typeof self.importScripts === 'function') {
+  const nativeImportScripts = self.importScripts.bind(self);
+  self.importScripts = function () {
+    for (const url of arguments) assertNetwork(url);
+    return nativeImportScripts.apply(self, arguments);
+  };
+}
+const panels = new Map();
+function sanitizePanelText(value) { return safeText(value, 8000); }
 self.minepilot = {
   apiVersion: 1,
   pluginId: PLUGIN_ID,
@@ -55,6 +135,18 @@ self.minepilot = {
     commands.set(commandId, { id: commandId, title: safeText(title || commandId, 80) });
     handlers.set(commandId, handler);
     post({ type: 'commands', commands: Array.from(commands.values()) });
+  },
+  registerPanel(id, title, text) {
+    const panelId = safeText(id, 48);
+    if (!/^[a-z0-9][a-z0-9._-]{0,47}$/i.test(panelId)) throw new Error('面板 id 只能包含字母、数字、点、下划线和短横线');
+    panels.set(panelId, { id: panelId, title: safeText(title || panelId, 80), text: sanitizePanelText(text) });
+    post({ type: 'panels', panels: Array.from(panels.values()) });
+  },
+  getMods(targetVersionId) {
+    return self.minepilot.invoke('mods:list', [{ targetVersionId: safeText(targetVersionId, 120) }]);
+  },
+  getContent(targetVersionId, type) {
+    return self.minepilot.invoke('content:list', [{ targetVersionId: safeText(targetVersionId, 120), type: safeText(type || 'resourcepack', 20) }]);
   },
   on(event, handler) {
     const name = safeText(event, 60);
@@ -111,6 +203,7 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
   }
 
   function stopPlugin(id) {
+    state.panels.delete(id);
     const worker = state.workers.get(id);
     if (worker) {
       try { worker.terminate(); } catch (err) { /* ignore */ }
@@ -143,6 +236,25 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
     return result;
   }
 
+  function renderPanels() {
+    const root = $('#plugin-panels');
+    if (!root) return;
+    const panels = [];
+    for (const [pluginId, list] of state.panels.entries()) {
+      const plugin = state.plugins.find((item) => item.id === pluginId);
+      if (!plugin || !plugin.enabled || state.errors.has(pluginId)) continue;
+      for (const panel of list || []) panels.push(Object.assign({ pluginName: plugin.name || pluginId }, panel));
+    }
+    if (!panels.length) {
+      root.innerHTML = '';
+      return;
+    }
+    root.innerHTML = panels.map((panel) => `<div class="plugin-panel">
+      <div class="plugin-panel-head"><strong>${esc(panel.title)}</strong><span class="muted-sm">${esc(panel.pluginName)}</span></div>
+      <p class="plugin-panel-text">${esc(panel.text)}</p>
+    </div>`).join('');
+  }
+
   function renderCommands() {
     const root = $('#plugin-commands');
     if (!root) return;
@@ -159,12 +271,20 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
     `).join('');
   }
 
+  function permissionText(plugin) {
+    const network = Array.isArray(plugin.permissions && plugin.permissions.network) ? plugin.permissions.network : [];
+    if (network.includes('*')) return '联网：任意域名（高风险）';
+    if (network.length) return `联网：${network.slice(0, 3).join('、')}${network.length > 3 ? ` 等 ${network.length} 个` : ''}`;
+    return plugin.permissionsDeclared ? '无联网权限' : '未声明权限（禁止联网）';
+  }
+
   function renderList() {
     const root = $('#plugin-list');
     if (!root) return;
     if (!state.plugins.length) {
-      root.innerHTML = '<p class="muted-sm">还没有安装插件。插件是本地 ZIP 包，不会自动从网络下载。</p>';
+      root.innerHTML = '<p class="muted-sm">还没有安装插件。可以从下方插件市场安装，或选择本地 ZIP。</p>';
       renderCommands();
+      renderPanels();
       return;
     }
     root.innerHTML = state.plugins.map((plugin) => {
@@ -175,6 +295,7 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
           <div class="plugin-main">
             <div class="plugin-name">${esc(plugin.name || plugin.id)} <span>v${esc(plugin.version || '—')}</span>${plugin.enabled ? '' : '<span class="plugin-off">已停用</span>'}</div>
             <p>${esc(plugin.description || '没有填写说明。')}${plugin.author ? ` · ${esc(plugin.author)}` : ''}</p>
+            <p class="plugin-permission">${esc(permissionText(plugin))}</p>
             ${error ? `<p class="plugin-error">${esc(error)}</p>` : ''}
           </div>
           <div class="plugin-actions">
@@ -185,6 +306,7 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
       `;
     }).join('');
     renderCommands();
+    renderPanels();
   }
 
   async function loadAll() {
@@ -251,6 +373,11 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
         renderList();
         return;
       }
+      if (data.type === 'panels') {
+        state.panels.set(pluginId, Array.isArray(data.panels) ? data.panels : []);
+        renderPanels();
+        return;
+      }
       if (data.type === 'toast') {
         MP.toast(`${pluginName}：${data.text || ''}`, data.tone || 'ok', 4200);
         return;
@@ -309,8 +436,126 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
     worker.postMessage({ type: 'run-command', id: commandId });
   }
 
+  function marketPermissions(entry) {
+    const network = Array.isArray(entry.permissions && entry.permissions.network) ? entry.permissions.network : [];
+    if (network.includes('*')) return '联网：任意域名';
+    if (network.length) return `联网：${network.slice(0, 3).join('、')}${network.length > 3 ? ' 等' : ''}`;
+    return '无联网权限';
+  }
+
+  function renderMarket() {
+    const root = $('#plugin-market-list');
+    const status = $('#plugin-market-status');
+    if (!root) return;
+    if (status) {
+      status.textContent = state.marketBusy
+        ? '正在读取索引…'
+        : (state.market.length
+          ? `索引中有 ${state.market.length} 个插件。安装前会展示权限并校验 SHA-256。`
+          : '索引是可选的；填写 GitHub / HTTPS JSON 地址后刷新。');
+    }
+    if (!state.market.length) {
+      root.innerHTML = '';
+      return;
+    }
+    root.innerHTML = state.market.map((entry) => `<div class="plugin-market-item">
+      <div class="plugin-main">
+        <div class="plugin-name">${esc(entry.name || entry.id)} <span>v${esc(entry.version || '—')}</span></div>
+        <p>${esc(entry.description || '没有说明')}${entry.author ? ` · ${esc(entry.author)}` : ''}</p>
+        <p class="plugin-permission">${esc(marketPermissions(entry))}</p>
+      </div>
+      <button class="btn small primary" data-plugin-market-install="${esc(entry.id)}">安装</button>
+    </div>`).join('');
+  }
+
+  async function loadMarket() {
+    const input = $('#plugin-index-url');
+    if (input && !input.value) {
+      input.value = (MP.state.settings && MP.state.settings.pluginIndexUrl) || '';
+    }
+    const url = input ? input.value.trim() : '';
+    if (!url) {
+      state.market = [];
+      renderMarket();
+      if (input) input.focus();
+      return;
+    }
+    state.marketBusy = true;
+    renderMarket();
+    let result;
+    try {
+      result = await MP.api.invoke('plugins:market', { url });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    state.marketBusy = false;
+    if (!result || !result.ok) {
+      state.market = [];
+      renderMarket();
+      MP.toast(`读取插件市场失败：${(result && result.error) || '未知错误'}`, 'err', 7000);
+      return;
+    }
+    state.market = Array.isArray(result.plugins) ? result.plugins : [];
+    renderMarket();
+    if (result.skipped) {
+      MP.toast(`已跳过 ${result.skipped} 个缺少 SHA-256 或地址不合法的条目`, 'warn', 6000);
+    }
+  }
+
+  async function installMarket(id) {
+    const entry = state.market.find((item) => item.id === id);
+    if (!entry) return;
+    if (!(await confirmPermissions(entry))) return;
+    let result;
+    try {
+      result = await MP.api.invoke('plugins:market-install', { entry, overwrite: false });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (result && result.code === 'PLUGIN_EXISTS') {
+      const ok = await MP.confirm({
+        title: '插件已经安装',
+        text: `是否覆盖「${entry.name || entry.id}」？`,
+        confirmLabel: '覆盖安装',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        result = await MP.api.invoke('plugins:market-install', { entry, overwrite: true });
+      } catch (err) {
+        result = { ok: false, error: err.message };
+      }
+    }
+    if (!result || !result.ok) {
+      MP.toast((result && result.error) || '安装插件失败', 'err', 6000);
+      return;
+    }
+    MP.toast(`插件「${(result.plugin && result.plugin.name) || entry.name}」已安装`, 'ok');
+    await loadAll();
+    renderMarket();
+  }
+
   function isWeb() {
     return Boolean(MP.state.info && MP.state.info.mode === 'web');
+  }
+
+  async function confirmPermissions(manifest) {
+    const network = Array.isArray(manifest.permissions && manifest.permissions.network) ? manifest.permissions.network : [];
+    const lines = network.length
+      ? (network.includes('*')
+        ? '<li><strong>联网：</strong>任意域名（<code>*</code>），这是高风险权限</li>'
+        : `<li><strong>联网：</strong>${network.map((host) => `<code>${esc(host)}</code>`).join('、')}</li>`)
+      : '<li><strong>联网：</strong>未声明，插件将无法访问网络</li>';
+    const declared = manifest.permissionsDeclared ? '插件声明了权限。' : '这个插件没有声明权限字段，将按最小权限运行。';
+    return MP.modal({
+      title: `安装插件：${manifest.name || manifest.id}`,
+      body: `<p>${esc(declared)}</p><ul class="plugin-permission-list">${lines}</ul>
+        <p class="muted-sm">插件在 Web Worker 中运行，拿不到账户令牌，也不能直接操作游戏文件。联网权限只限制域名，无法阻止插件上传你主动提供的数据；只安装你信任来源的插件。</p>`,
+      actions: [
+        { label: '取消', value: false },
+        { label: '确认安装', kind: 'primary', value: true },
+      ],
+    }).then((value) => value === true);
   }
 
   async function installFromFile(file) {
@@ -326,6 +571,17 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
     state.installing = true;
     try {
       const data = await readFileBase64(file);
+      let inspected;
+      try {
+        inspected = await MP.api.invoke('plugins:inspect-base64', { data });
+      } catch (err) {
+        inspected = { ok: false, error: err.message };
+      }
+      if (!inspected || !inspected.ok) {
+        MP.toast((inspected && inspected.error) || '无法读取插件信息', 'err', 6000);
+        return;
+      }
+      if (!(await confirmPermissions(inspected.manifest || {}))) return;
       const result = await MP.api.invoke('plugins:install-base64', { data, overwrite: false });
       await handleInstallResult(result, { data, overwrite: true });
     } catch (err) {
@@ -356,8 +612,15 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
       return;
     }
     try {
-      const result = await MP.api.invoke('plugins:install', { overwrite: false });
-      await handleInstallResult(result, null);
+      const inspected = await MP.api.invoke('plugins:inspect');
+      if (!inspected || inspected.canceled) return;
+      if (!inspected.ok) {
+        MP.toast(inspected.error || '无法读取插件信息', 'err', 6000);
+        return;
+      }
+      if (!(await confirmPermissions(inspected.manifest || {}))) return;
+      const result = await MP.api.invoke('plugins:install', { filePath: inspected.filePath, overwrite: false });
+      await handleInstallResult(result, { filePath: inspected.filePath });
     } catch (err) {
       MP.toast(`安装插件失败：${err.message}`, 'err', 6000);
     }
@@ -391,6 +654,24 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
 
   function bind() {
     MP.on('#btn-plugin-install', 'click', installFromDialog);
+    MP.on('#btn-plugin-market', 'click', loadMarket);
+    MP.on('#btn-save-plugin-index', 'click', async () => {
+      const input = $('#plugin-index-url');
+      const url = input ? input.value.trim() : '';
+      if (url && !/^https:\/\//i.test(url)) {
+        MP.toast('插件索引地址必须是 https:// 链接', 'err');
+        return;
+      }
+      const next = await MP.api.invoke('settings:update', { pluginIndexUrl: url });
+      MP.state.settings = next;
+      MP.toast(url ? '插件索引地址已保存' : '已清空插件索引地址', 'ok');
+      state.market = [];
+      renderMarket();
+    });
+    MP.on('#plugin-market-list', 'click', (event) => {
+      const button = event.target.closest('[data-plugin-market-install]');
+      if (button) installMarket(button.dataset.pluginMarketInstall);
+    });
     MP.on('#btn-plugin-open-folder', 'click', async () => {
       const result = await MP.api.invoke('plugins:open-folder');
       if (result && result.ok === false) MP.toast(result.error || '无法打开插件目录', 'err');
@@ -444,10 +725,17 @@ post({ type: 'ready', commands: Array.from(commands.values()) });
   MP.plugins = {
     init() {
       bind();
+      const input = $('#plugin-index-url');
+      if (input && MP.state.settings) input.value = MP.state.settings.pluginIndexUrl || '';
+      renderMarket();
       setTimeout(loadAll, 150);
     },
     loadAll,
     render: renderList,
     rerender: renderList,
+    broadcast(name, payload) {
+      if (!ALLOWED_EVENTS.has(name)) return;
+      broadcastEvent(name, payload);
+    },
   };
 })();

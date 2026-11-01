@@ -15,6 +15,8 @@ const ALLOWED_KEYS = [
   'curseforgeApiKey', 'downloadSource', 'theme', 'backgroundType',
   'backgroundColor', 'uiScale', 'animations', 'updateFeedUrl', 'autoCheckUpdates',
   'onlineDownloads', 'language', 'memoryAuto', 'memoryOptimize',
+  'javaExtraPaths', 'javaIgnorePaths', 'javaVersionOverrides', 'javaVendor', 'gistToken',
+  'pluginIndexUrl', 'netplayProfiles',
 ];
 
 function defaultGameDir() {
@@ -46,6 +48,10 @@ function defaults() {
     gameDir: defaultGameDir(),
     gameDataDir: '',
     javaPath: '',
+    javaExtraPaths: [],
+    javaIgnorePaths: [],
+    javaVersionOverrides: {},
+    javaVendor: 'temurin',
     memoryMb: defaultMemory(),
     memoryAuto: true,
     memoryOptimize: true,
@@ -77,6 +83,10 @@ function defaults() {
     onlineDownloads: false,
     // 启动器语言：中文（zh-CN）或英文（en-US）。游戏语言会跟随此设置。
     language: 'zh-CN',
+    // 插件市场索引；为空时仍可手动填写任意 GitHub / HTTPS JSON 地址。
+    pluginIndexUrl: 'https://raw.githubusercontent.com/nxndai/MinePilot/main/docs/plugin-index.json',
+    // 联机工具只保存用户自己的可执行文件与参数，不随启动器分发第三方二进制。
+    netplayProfiles: [],
   };
 }
 
@@ -156,6 +166,48 @@ function sanitize(patch, base) {
         break;
       case 'curseforgeApiKey':
         value = String(value == null ? '' : value).trim().slice(0, 200);
+        break;
+      case 'gistToken':
+        value = String(value == null ? '' : value).trim().slice(0, 200);
+        break;
+      case 'pluginIndexUrl':
+        value = String(value == null ? '' : value).trim().slice(0, 500);
+        if (value && !/^https:\/\//i.test(value)) value = '';
+        break;
+      case 'netplayProfiles':
+        value = Array.isArray(value)
+          ? value.slice(0, 20).map((item, index) => {
+            const raw = item && typeof item === 'object' ? item : {};
+            return {
+              id: String(raw.id || `net-${index + 1}`).replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 80) || `net-${index + 1}`,
+              name: String(raw.name || '').replace(/[\u0000-\u001f]/g, '').slice(0, 60),
+              tool: ['terracotta', 'easytier', 'frp', 'custom'].includes(raw.tool) ? raw.tool : 'custom',
+              executable: String(raw.executable || '').trim().slice(0, 500),
+              args: Array.isArray(raw.args)
+                ? raw.args.slice(0, 40).map((arg) => String(arg || '').replace(/[\u0000-\u001f]/g, '').slice(0, 300)).filter(Boolean)
+                : [],
+              cwd: String(raw.cwd || '').trim().slice(0, 500),
+              autoCopy: raw.autoCopy !== false,
+            };
+          })
+          : [];
+        break;
+      case 'javaVendor':
+        value = ['temurin', 'zulu', 'corretto'].includes(value) ? value : 'temurin';
+        break;
+      case 'javaExtraPaths':
+      case 'javaIgnorePaths':
+        value = Array.isArray(value)
+          ? Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 50)
+          : [];
+        break;
+      case 'javaVersionOverrides':
+        value = value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value)
+            .map(([key, item]) => [String(key || '').slice(0, 120), String(item || '').trim()])
+            .filter(([key, item]) => key && item)
+            .slice(0, 200))
+          : {};
         break;
       case 'updateFeedUrl':
         value = String(value == null ? '' : value).trim().slice(0, 500);

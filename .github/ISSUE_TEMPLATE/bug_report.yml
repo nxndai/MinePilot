@@ -1,5 +1,5 @@
-name: Bug report
-description: Report a reproducible problem in MinePilot
+name: Bug 反馈 / Bug report
+description: 报告可复现的启动器问题（请附上诊断报告） / Report a reproducible issue with diagnostics
 title: "[Bug] "
 labels:
   - bug
@@ -7,88 +7,110 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a problem. Please remove access tokens, passwords,
-        personal paths and other sensitive data from logs before submitting.
+        **提交前请先查看 [常见问题（FAQ）](https://github.com/nxndai/MinePilot#faq)，并搜索已有 Issue。**
 
-        For security vulnerabilities, do **not** use this form. Follow
-        [SECURITY.md](https://github.com/nxndai/MinePilot/blob/main/SECURITY.md)
-        instead.
+        安全漏洞请不要公开提交，请按 [SECURITY.md](https://github.com/nxndai/MinePilot/blob/main/SECURITY.md) 私下联系。
+
+        请删除访问令牌、密码、个人路径等敏感信息。English users can write the report in English; the diagnostics report is still required.
 
   - type: input
     id: version
     attributes:
-      label: MinePilot version
-      description: Shown in the launcher footer or the GitHub release.
-      placeholder: "1.8.0"
+      label: 启动器版本
+      description: 在「设置 → 关于」、更新提示或窗口底部可以看到版本号。
+      placeholder: "1.9.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题类型
+      description: 选择最接近的一项，方便快速分类。
+      options:
+        - 启动 / 崩溃 / 游戏异常退出
+        - 安装 / 更新 / 删除启动器
+        - 下载版本或加载器
+        - 下载模组或整合包
+        - Microsoft 登录 / 账户
+        - 界面 / 语言 / 皮肤
+        - 其他
     validations:
       required: true
 
   - type: dropdown
     id: package
     attributes:
-      label: Installation type
+      label: 安装方式
       options:
-        - Windows installer
-        - Portable application
-        - Edge fallback installer
-        - Running from source
+        - Windows 安装包
+        - 便携版
+        - Edge 备用版
+        - 从源码运行
     validations:
       required: true
 
   - type: dropdown
     id: os
     attributes:
-      label: Windows version
+      label: Windows 版本
       options:
         - Windows 11
         - Windows 10
         - Windows 8.1
         - Windows 7
-        - Other / not Windows
+        - 其他 / 非 Windows
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
-      description: Include the exact buttons or settings used.
+      label: 复现步骤
+      description: 请写出点击了哪些按钮、改动了哪些设置，越具体越好。
       placeholder: |
-        1. Open ...
-        2. Click ...
-        3. See ...
+        1. 打开……
+        2. 点击……
+        3. 页面出现……
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: 期望行为
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
+      label: 实际行为
+      description: 如果有报错文字、错误代码或截图，请一起附上。
     validations:
       required: true
 
   - type: textarea
-    id: logs
+    id: diagnostics
     attributes:
-      label: Logs or screenshots
-      description: Remove tokens, account names and personal paths before posting.
-      render: text
+      label: 诊断报告（必需）
+      description: |
+        打开启动器左侧「诊断」→ 右上角「导出报告」，把生成的 ZIP 拖到本栏，或粘贴可访问的下载链接。
+        如果表单无法直接上传附件，可以先提交 Issue，再点「Edit」补传；无法导出时请说明原因，并附上安装包名称、错误文字或截图。
+      placeholder: "把诊断报告 ZIP 拖到这里，或粘贴下载链接；无法导出时请说明原因。"
+    validations:
+      required: true
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Checklist
+      label: 提交检查
       options:
-        - label: I am using the latest release.
+        - label: 我使用的是最新版本，并已查看 README 和常见问题。
           required: true
-        - label: I searched existing issues for the same problem.
+        - label: 我已搜索现有 Issue，确认不是重复问题。
           required: true
-        - label: I removed access tokens and other secrets from this report.
+        - label: 我已附上诊断报告，或已说明无法导出的原因。
+          required: true
+        - label: 我已删除报告和截图中的访问令牌、密码等敏感信息。
           required: true

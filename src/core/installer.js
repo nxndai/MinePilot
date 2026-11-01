@@ -94,14 +94,17 @@ function collectTasks(meta, gameDir, s) {
   }
 
   if (meta.logging && meta.logging.file && meta.logging.file.url) {
-    push(buildTask(
+    const logTask = buildTask(
       meta.logging.file.url,
       path.join(gameDir, 'assets', 'log_configs', meta.logging.file.id || 'client.xml'),
       meta.logging.file.sha1,
       meta.logging.file.size,
       '日志配置',
       s.downloadSource || s.useMirror,
-    ));
+    );
+    // 日志配置只影响日志格式；缺失时游戏仍可启动，不能因此阻断启动。
+    if (logTask) logTask.optional = true;
+    push(logTask);
   }
 
   return tasks;

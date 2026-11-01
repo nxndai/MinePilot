@@ -68,6 +68,25 @@ for (const entry of entries) {
   fs.cpSync(source, path.join(appDir, entry), { recursive: true });
 }
 
+// 便携版提供一个双击启动脚本，避免把 --no-sandbox 参数写进快捷方式后
+// 被系统误判；同时确保从任意当前目录启动都能找到 MinePilot.exe。
+fs.writeFileSync(
+  path.join(outDir, '启动 MinePilot.bat'),
+  '@echo off\r\ncd /d "%~dp0"\r\nstart "" "%~dp0MinePilot.exe" --no-sandbox\r\n',
+  'utf8',
+);
+
+// 便携版也带一个卸载程序：设置页的「删除启动器」会优先调用它，
+// 由它等待启动器退出后再删除程序、快捷方式和卸载登记，并保留 data。
+try {
+  const { buildUninstaller } = require('./sfx-builder');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  buildUninstaller(path.join(outDir, 'Uninstall.exe'), pkg.version);
+  console.log('已添加便携版卸载程序。');
+} catch (err) {
+  console.warn('未能添加便携版卸载程序，将使用内置清理脚本：' + err.message);
+}
+
 // 便携版直接使用现有的 data（如果存在），这样升级时不会丢失账户、设置和游戏数据。
 // 安装版不会携带 data，安装后首次运行会使用 %APPDATA%\MinePilot。
 const legacyData = path.join(root, 'dist', 'MinePilotWeb', 'data');

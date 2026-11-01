@@ -104,6 +104,84 @@ function lineEvidence(text, regex) {
 function normalizePatterns() {
   return [
     {
+      id: 'optifine-fabric',
+      severity: 'error',
+      title: 'OptiFine 与 Fabric 不兼容',
+      confidence: 'high',
+      test: /(?:OptiFine|optifine)[\s\S]{0,300}(?:Fabric|fabric)|(?:Fabric|fabric)[\s\S]{0,300}(?:OptiFine|optifine)|OptiFine.*(?:incompatible|not compatible|crash)/i,
+      detail: 'OptiFine 不是 Fabric 模组，直接放进 Fabric 的 mods/ 通常会因为 Mixin 注入冲突而启动失败。',
+      suggestions: [
+        'Fabric 实例请改用 Sodium、Iris、Lithium 等 Fabric 优化模组，而不是 OptiFine。',
+        '如果必须使用 OptiFine，请选择 Forge 实例，并确认 OptiFine 版本与 Minecraft 一致。',
+        '已经安装 OptiFine 时，可以先用下方按钮禁用它，再重新启动验证。',
+      ],
+      actions: [
+        { id: 'disable-optifine', label: '禁用 OptiFine', kind: 'invoke', danger: true },
+        { id: 'open-mods', label: '打开模组管理', kind: 'navigate', view: 'mods' },
+      ],
+    },
+    {
+      id: 'duplicate-mods',
+      severity: 'error',
+      title: '同一个模组存在多个文件',
+      confidence: 'high',
+      test: /Duplicate mod|duplicate modid|Found duplicate mod|duplicate entries for/i,
+      detail: '同一个 modid 被多个 JAR 提供，加载器可能只加载其中一个，也可能因为类重复而崩溃。',
+      suggestions: [
+        '在「模组」页检查重复的 modid，只保留一个版本。',
+        '禁用或删除旧版本，并确认前置模组没有被重复安装。',
+      ],
+      actions: [
+        { id: 'open-mods', label: '检查重复模组', kind: 'navigate', view: 'mods' },
+      ],
+    },
+    {
+      id: 'loader-mismatch',
+      severity: 'error',
+      title: '加载器与模组不匹配',
+      confidence: 'high',
+      test: /Incompatible mod set|is not a valid mod file|requires (?:Forge|Fabric|NeoForge|Quilt)[\s\S]{0,80}(?:but|found)|fabricloader.*(?:missing|not found)|neoforge.*forge/i,
+      detail: '安装的模组与当前实例使用的加载器不一致，例如把 Forge 模组放进 Fabric 实例。',
+      suggestions: [
+        '确认实例加载器是 Fabric、Forge、NeoForge 还是 Quilt，并重新下载对应版本。',
+        '不要混用不同加载器的模组；整合包导入时也要选择匹配的加载器。',
+      ],
+      actions: [
+        { id: 'open-mods', label: '打开模组管理', kind: 'navigate', view: 'mods' },
+        { id: 'open-versions', label: '检查实例加载器', kind: 'navigate', view: 'versions' },
+      ],
+    },
+    {
+      id: 'java-arch',
+      severity: 'error',
+      title: 'Java 位数或架构不匹配',
+      confidence: 'high',
+      test: /32-bit Java|64-bit Java|Architecture mismatch|wrong architecture|JVM is 32-bit|mismatched architecture/i,
+      detail: '当前 Java 的位数或 CPU 架构与游戏/系统不匹配，无法加载 64 位本机库。',
+      suggestions: [
+        '安装与系统一致的 64 位 Java（Windows 上通常是 x64）。',
+        '在「设置 → Java 运行环境」中切换 Java 路径后重新启动。',
+      ],
+      actions: [
+        { id: 'open-java-settings', label: '更换 Java', kind: 'navigate', view: 'settings', anchor: 'java' },
+      ],
+    },
+    {
+      id: 'fabric-api-missing',
+      severity: 'error',
+      title: '缺少 Fabric API',
+      confidence: 'medium',
+      test: /Fabric API[\s\S]{0,80}(?:missing|required|not installed)|fabric-api[\s\S]{0,80}(?:missing|required|not found)/i,
+      detail: '很多 Fabric 模组依赖 Fabric API；缺少它时会在启动阶段报找不到类或入口点。',
+      suggestions: [
+        '安装与当前 Minecraft 版本一致的 Fabric API。',
+        '安装后回到「模组」页，用「检查问题」确认没有其他缺失前置。',
+      ],
+      actions: [
+        { id: 'open-mods', label: '安装 Fabric API', kind: 'navigate', view: 'mods', search: 'fabric api' },
+      ],
+    },
+    {
       id: 'out-of-memory',
       severity: 'critical',
       title: '内存不足',
@@ -114,6 +192,9 @@ function normalizePatterns() {
         '在「设置」里把内存调到 4096–8192 MB，不要超过电脑可用内存的 70%。',
         '关闭占用内存较高的其他程序，或减少同时安装的大型模组。',
         '如果仍然崩溃，请导出诊断报告并查看是否同时存在模组冲突。',
+      ],
+      actions: [
+        { id: 'open-memory-settings', label: '调整内存设置', kind: 'navigate', view: 'settings' },
       ],
     },
     {
@@ -126,6 +207,10 @@ function normalizePatterns() {
       suggestions: [
         '在「设置 → Java 运行环境」中换成与游戏版本匹配的 Java（1.17+ 通常需要 Java 17 或 21）。',
         '点击「自动安装 Java」安装对应版本，然后重新启动游戏。',
+      ],
+      actions: [
+        { id: 'open-java-settings', label: '打开 Java 设置', kind: 'navigate', view: 'settings', anchor: 'java' },
+        { id: 'install-java-auto', label: '自动安装匹配的 Java', kind: 'java' },
       ],
     },
     {
@@ -140,6 +225,10 @@ function normalizePatterns() {
         '检查模组是否支持当前的 Minecraft 和加载器版本，并补齐作者要求的前置。',
         '在模组列表里禁用冲突模组后重试；诊断报告会记录已安装模组文件名。',
       ],
+      actions: [
+        { id: 'open-mods', label: '打开模组管理', kind: 'navigate', view: 'mods' },
+        { id: 'disable-optifine', label: '禁用 OptiFine', kind: 'invoke', danger: true },
+      ],
     },
     {
       id: 'mod-dependency',
@@ -151,6 +240,10 @@ function normalizePatterns() {
       suggestions: [
         '回到「模组」页重新检查依赖树，安装缺失的必需前置。',
         '确认所有模组都对应同一个 Minecraft 版本和加载器（Fabric / Forge / NeoForge / Quilt）。',
+      ],
+      actions: [
+        { id: 'open-mods', label: '检查缺失前置', kind: 'navigate', view: 'mods' },
+        { id: 'search-mods', label: '搜索缺失前置', kind: 'navigate', view: 'mods', search: true },
       ],
     },
     {
@@ -164,6 +257,9 @@ function normalizePatterns() {
         '确认模组文件支持当前的 Minecraft 版本和加载器版本。',
         '删除重复安装的同一个模组，或回退到作者推荐的稳定版本。',
         '如果最近更新过游戏，请同步更新所有模组和加载器。',
+      ],
+      actions: [
+        { id: 'open-mods', label: '打开模组管理', kind: 'navigate', view: 'mods' },
       ],
     },
     {
@@ -190,6 +286,9 @@ function normalizePatterns() {
         '在「版本」页对该版本执行重新安装或完整性修复。',
         '检查磁盘空间和安全软件是否拦截了文件写入。',
         '如果是整合包，请重新导入并确认下载没有被中断。',
+      ],
+      actions: [
+        { id: 'open-versions', label: '打开版本管理', kind: 'navigate', view: 'versions' },
       ],
     },
     {
@@ -291,6 +390,7 @@ function analyze(info = {}) {
         detail: pattern.detail,
         evidence: redact(lineEvidence(fatalText, pattern.test)),
         suggestions: pattern.suggestions.slice(),
+        actions: Array.isArray(pattern.actions) ? pattern.actions.map((action) => Object.assign({}, action)) : [],
       });
     }
   }
@@ -590,6 +690,66 @@ function markdown(record) {
   return lines.join('\n');
 }
 
+/**
+ * 用于公开分享的额外脱敏：除了令牌，还要去掉用户名、绝对路径、玩家名和 IP。
+ * 这不是“匿名化”的保证，分享前仍应让用户自己检查一遍。
+ */
+function sanitizeShareText(text) {
+  return redact(text)
+    .replace(/([A-Za-z]:\\Users\\)[^\\\s]+/gi, '$1<用户>')
+    .replace(/\/home\/[^/\s]+/g, '/home/<用户>')
+    .replace(/\/Users\/[^/\s]+/g, '/Users/<用户>')
+    .replace(/(--username\s+)\S+/gi, '$1<玩家>')
+    .replace(/(--uuid\s+)\S+/gi, '$1<UUID>')
+    .replace(/\b(?:[A-Za-z]:\\|\\\\)[^\s"'<>]+/gi, '<本地路径>')
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '<IP>');
+}
+
+function shareMarkdown(record) {
+  const lines = [
+    '# MinePilot 诊断摘要',
+    '',
+    `- 生成时间：${new Date(record.createdAt || Date.now()).toLocaleString('zh-CN')}`,
+    `- 游戏版本：${record.versionId || '未知'}`,
+    `- 结论：${record.title || '未知'}`,
+    `- 退出代码：${record.exit && record.exit.code != null ? record.exit.code : '未知'}`,
+    '',
+    record.summary || '',
+    '',
+    '## 可能原因',
+    '',
+  ];
+  const causes = Array.isArray(record.causes) ? record.causes : [];
+  if (!causes.length) lines.push('没有识别到明确原因。', '');
+  causes.forEach((cause, index) => {
+    lines.push(`### ${index + 1}. ${cause.title}`, '');
+    lines.push(`- 置信度：${cause.confidence || '未知'}`);
+    lines.push(`- 说明：${cause.detail || '—'}`);
+    if (cause.evidence) lines.push(`- 证据：\`${sanitizeShareText(cause.evidence).replace(/`/g, "'")}\``);
+    lines.push('', '建议：');
+    for (const suggestion of cause.suggestions || []) lines.push(`- ${suggestion}`);
+    lines.push('');
+  });
+
+  const system = record.system || {};
+  const launcher = system.launcher || {};
+  const osInfo = system.os || {};
+  const java = system.java || {};
+  lines.push(
+    '## 环境',
+    '',
+    `- 启动器：${launcher.version || '未知'}（${launcher.platform || '未知平台'}）`,
+    `- 系统：${osInfo.platform || ''} ${osInfo.release || ''} ${osInfo.arch || ''}`,
+    `- Java：${java.major || '未知'}（${sanitizeShareText(java.path || '未知路径')}）`,
+    `- 内存：${system.settings && system.settings.memoryMb ? `${system.settings.memoryMb} MB` : '未知'}`,
+    `- 已安装模组：${Array.isArray(record.mods) ? record.mods.length : 0} 个（文件名未包含在分享摘要中）`,
+    '',
+    '> 该摘要已隐藏令牌、用户名、本地绝对路径和 IP；发送前仍请自行检查是否包含不想公开的信息。',
+    '',
+  );
+  return lines.join('\n');
+}
+
 function addFileEntry(entries, zipName, file) {
   try {
     if (!file || !fs.existsSync(file)) return;
@@ -661,6 +821,8 @@ module.exports = {
   exportReport,
   buildSystemInfo,
   markdown,
+  shareMarkdown,
+  sanitizeShareText,
   redact,
   listMods,
 };

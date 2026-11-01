@@ -72,6 +72,12 @@ namespace MinePilotSetup
             return "";
         }
 
+        private static int GetIntArg(string[] args, string prefix)
+        {
+            int value;
+            return int.TryParse(GetArgValue(args, prefix), out value) ? value : 0;
+        }
+
         private static bool HasArg(string[] args, string expected)
         {
             foreach (string arg in args)
@@ -102,7 +108,15 @@ namespace MinePilotSetup
             currentTarget = target;
             Log("开始安装 " + Version + " 到 " + target);
             KillRunning();
-            Directory.CreateDirectory(target);
+            EnsureNotRunning();
+            try
+            {
+                Directory.CreateDirectory(target);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new IOException("无法写入安装目录：" + target + "\r\n请确认当前用户对该目录有写权限，或换一个目录安装。", ex);
+            }
             WriteStep(target, "创建目录完成");
 
             // 不使用 %TEMP%：部分受限账户/计划任务下临时目录不可写；放到目标目录内更可靠。
@@ -118,7 +132,14 @@ namespace MinePilotSetup
                 Directory.CreateDirectory(appDir);
                 ZipFile.ExtractToDirectory(zipPath, appDir);
                 WriteStep(target, "复制程序文件");
-                CopyDirectory(appDir, target);
+                try
+                {
+                    CopyDirectory(appDir, target);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    throw new IOException("无法写入安装目录：" + target + "\r\n安装文件可能正被 MinePilot、杀毒软件或系统占用。请结束所有 MinePilot.exe 后重试。", ex);
+                }
                 if (!File.Exists(exePath))
                 {
                     throw new IOException("安装包中没有找到 MinePilot.exe。");
@@ -328,6 +349,24 @@ namespace MinePilotSetup
                 dir = Path.GetFullPath(explicitDir);
             }
 
+            // 从启动器内部触发卸载时，先等启动器自己退出，避免卸载器把正在响应
+            // IPC 的窗口强制结束，导致用户看不到删除结果。
+            int waitPid = GetIntArg(args, "/WAITPID=");
+            if (waitPid > 0 && waitPid != Process.GetCurrentProcess().Id)
+            {
+                Log("等待启动器退出：" + waitPid);
+                try
+                {
+                    using (Process parent = Process.GetProcessById(waitPid))
+                    {
+                        parent.WaitForExit(30000);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
             if (!cleanupMode)
             {
                 if (!silent)
@@ -467,6 +506,34 @@ namespace MinePilotSetup
                 {
                 }
             }
+            // 某些权限隔离/残留子进程下 Process.Kill 会失败，taskkill /T 会连同
+            // Electron 的子进程一起结束，避免它们继续占用 resources 目录。
+            if (Process.GetProcessesByName("MinePilot").Length > 0)
+            {
+                try
+                {
+                    ProcessStartInfo info = new ProcessStartInfo("taskkill", "/F /T /IM MinePilot.exe")
+                    {
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    using (Process killer = Process.Start(info))
+                    {
+                        if (killer != null) killer.WaitForExit(5000);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void EnsureNotRunning()
+        {
+            if (Process.GetProcessesByName("MinePilot").Length == 0) return;
+            throw new IOException("MinePilot 仍在运行，安装程序无法覆盖程序文件。\r\n"
+                + "请在任务管理器中结束所有 MinePilot.exe（包括后台进程）后重试，"
+                + "或直接使用便携版。");
         }
 
         private static void WriteStep(string target, string message)

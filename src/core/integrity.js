@@ -97,7 +97,7 @@ function assetIndexTask(meta, gameDir, s) {
   const index = meta.assetIndex;
   if (!index || !index.url) return null;
   const id = String(index.id || meta.assets || 'legacy').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_');
-  return task(
+  const item = task(
     index.url,
     path.join(gameDir, 'assets', 'indexes', `${id}.json`),
     index.sha1,
@@ -105,6 +105,14 @@ function assetIndexTask(meta, gameDir, s) {
     '资源索引',
     s.useMirror,
   );
+  if (item) {
+    // 同一个资源索引 ID（例如 5）在不同版本 JSON 里可能有不同 SHA1；
+    // PCL 等启动器会共用一个索引文件。文件存在且能解析时不要因为哈希不同
+    // 就重新下载/覆盖，否则在只读目录会直接阻断启动。
+    item.optional = true;
+    item.skipHashIfExists = true;
+  }
+  return item;
 }
 
 function collectCoreTasks(meta, gameDir, s) {
@@ -146,14 +154,17 @@ function assetTasks(index, gameDir, s) {
     seen.add(hash);
     const prefix = hash.slice(0, 2);
     const url = `${ASSETS_BASE}/${prefix}/${hash}`;
-    tasks.push(task(
+    const item = task(
       url,
       path.join(gameDir, 'assets', 'objects', prefix, hash),
       hash,
       object.size,
       name,
       s.useMirror,
-    ));
+    );
+    // 资源对象只影响贴图/声音；缺少时不应阻断整个游戏启动。
+    if (item) item.optional = true;
+    tasks.push(item);
   }
   return tasks.filter(Boolean);
 }
@@ -162,6 +173,7 @@ async function inspectTask(item, gameDir, cache) {
   const file = item.path;
   const stat = fileStat(file);
   if (!stat) return { kind: 'missing', task: item, detail: '文件不存在' };
+  if (item.skipHashIfExists) return null;
   if (item.size && stat.size !== item.size) {
     return { kind: 'broken', task: item, detail: `大小不一致（期望 ${item.size}，实际 ${stat.size}）` };
   }
@@ -274,7 +286,16 @@ async function repairIssues(issues, gameDir, cache, options) {
     });
   } catch (err) {
     if (options.signal && options.signal.aborted) throw err;
-    const failed = (err.failures || []).map((failure) => failure.item).filter(Boolean);
+    const failures = err.failures || [];
+    const failed = failures.map((failure) => failure.item).filter(Boolean);
+    const requiredFailed = failed.filter((item) => !item.optional);
+    const allOptional = items.length > 0 && items.every((item) => item.optional);
+    if (!requiredFailed.length && (failed.length || allOptional)) {
+      // 资源索引、日志配置、assets 对象等缺失不应阻断启动；权限受限时
+      // 只记录警告，让游戏使用现有文件继续运行。
+      logger.warn('可选游戏文件补全失败，继续启动:', err.message);
+      return { repaired: 0, bytes: 0, optionalFailed: failed.length || items.length };
+    }
     const sample = failed.length ? `（例如 ${failed[0].label || path.basename(failed[0].path)}）` : '';
     const error = new Error(
       `检测到 ${total} 个缺失或损坏文件，但自动修复失败${sample}：${err.message}。请检查网络后重试。`,
@@ -345,7 +366,14 @@ async function ensureFiles(meta, gameDir, options = {}) {
   let assetRepair = { repaired: 0, bytes: 0 };
   let assetTotal = 0;
   let skippedAssets = false;
-  const index = readAssetIndex(meta, gameDir);
+  let index = null;
+  try {
+    index = readAssetIndex(meta, gameDir);
+  } catch (err) {
+    // 资源索引缺失/损坏时仍允许启动；游戏会使用本地已有资源，
+    // 不应因为一个可选索引把整个实例卡死。
+    logger.warn('资源索引不可用，跳过资源完整性校验:', err.message);
+  }
   if (index) {
     const tasks = assetTasks(index, gameDir, s);
     assetTotal = tasks.length;
@@ -373,24 +401,30 @@ async function ensureFiles(meta, gameDir, options = {}) {
 
   saveCache(meta.id || meta.jarId || 'version', cache, gameDir);
 
-  if (!allowDownloads && coreIssues.length + assetIssues.length > 0) {
-    const missingCount = coreIssues.filter((issue) => issue.kind === 'missing').length
-      + assetIssues.filter((issue) => issue.kind === 'missing').length;
-    const brokenCount = coreIssues.filter((issue) => issue.kind === 'broken').length
-      + assetIssues.filter((issue) => issue.kind === 'broken').length;
-    const error = new Error(
-      `本地游戏文件不完整（缺失 ${missingCount}，损坏 ${brokenCount}）。`
-      + '“在线下载”已关闭，无法自动补全；请在「设置 → 下载」开启后重试。',
-    );
-    error.code = 'ONLINE_DOWNLOADS_DISABLED';
-    throw error;
+  if (!allowDownloads) {
+    const requiredCore = coreIssues.filter((issue) => !issue.task.optional);
+    const requiredAssets = assetIssues.filter((issue) => !issue.task.optional);
+    if (requiredCore.length + requiredAssets.length > 0) {
+      const missingCount = requiredCore.filter((issue) => issue.kind === 'missing').length
+        + requiredAssets.filter((issue) => issue.kind === 'missing').length;
+      const brokenCount = requiredCore.filter((issue) => issue.kind === 'broken').length
+        + requiredAssets.filter((issue) => issue.kind === 'broken').length;
+      const error = new Error(
+        `本地游戏文件不完整（缺失 ${missingCount}，损坏 ${brokenCount}）。`
+        + '“在线下载”已关闭，无法自动补全；请在「设置 → 下载」开启后重试。',
+      );
+      error.code = 'ONLINE_DOWNLOADS_DISABLED';
+      throw error;
+    }
   }
 
+  const optionalIssues = coreIssues.concat(assetIssues.filter((issue) => issue.task.optional));
   const result = {
     ok: true,
     checked: coreTasks.length + assetTotal,
     missing: missing + assetIssues.filter((issue) => issue.kind === 'missing').length,
     broken: broken + assetIssues.filter((issue) => issue.kind === 'broken').length,
+    optionalMissing: optionalIssues.length,
     repaired: coreRepair.repaired + assetRepair.repaired,
     assets: assetTotal,
     skippedAssets,

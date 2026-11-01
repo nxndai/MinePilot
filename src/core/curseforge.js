@@ -619,6 +619,12 @@ async function install(options = {}) {
   const signal = options.signal || null;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
 
+  if (!loader) {
+    const error = new Error('当前实例是原版，没有 Forge/Fabric/NeoForge/Quilt 加载器；模组不会生效。请先在「版本」页安装加载器，再回来安装模组。');
+    error.code = 'NO_LOADER';
+    throw error;
+  }
+
   let initial = null;
   if (options.versionId) {
     initial = await getFile({

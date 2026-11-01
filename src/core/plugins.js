@@ -13,6 +13,7 @@ const path = require('path');
 
 const config = require('./config');
 const logger = require('./logger');
+const net = require('./net');
 const { extractZip, listZipEntries } = require('./zip');
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
@@ -50,6 +51,42 @@ function enabledState() {
   return state.enabled && typeof state.enabled === 'object' ? state.enabled : {};
 }
 
+function normalizeNetwork(value) {
+  if (value == null) return { list: [], error: '' };
+  if (!Array.isArray(value)) return { list: [], error: 'permissions.network 必须是域名数组' };
+  const list = [];
+  for (const raw of value.slice(0, 40)) {
+    let text = String(raw || '').trim().toLowerCase();
+    if (!text) continue;
+    if (text === '*') {
+      if (!list.includes('*')) list.push('*');
+      continue;
+    }
+    text = text.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+    if (!/^(\*\.)?[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(text) || text.includes('..')) {
+      return { list: [], error: `联网权限域名不合法：${raw}` };
+    }
+    if (!list.includes(text)) list.push(text);
+    if (list.length >= 20) break;
+  }
+  return { list, error: '' };
+}
+
+function normalizePermissions(raw) {
+  const declared = Boolean(raw && Object.prototype.hasOwnProperty.call(raw, 'permissions'));
+  const source = raw && raw.permissions && typeof raw.permissions === 'object' ? raw.permissions : {};
+  const network = normalizeNetwork(source.network);
+  return {
+    permissions: {
+      network: network.list,
+      storage: source.storage === true,
+      notifications: source.notifications === true,
+    },
+    permissionsDeclared: declared,
+    permissionsError: network.error,
+  };
+}
+
 function readManifest(dir, folderId, options = {}) {
   const file = path.join(dir, 'plugin.json');
   let raw;
@@ -72,6 +109,8 @@ function readManifest(dir, folderId, options = {}) {
   if (!mainPath.startsWith(path.resolve(dir) + path.sep) || !fs.existsSync(mainPath)) {
     return { error: `插件入口不存在：${main}` };
   }
+  const permissions = normalizePermissions(raw);
+  if (permissions.permissionsError) return { error: permissions.permissionsError };
   return {
     manifest: {
       id,
@@ -82,6 +121,8 @@ function readManifest(dir, folderId, options = {}) {
       homepage: String(raw.homepage || '').slice(0, 300),
       apiVersion: API_VERSION,
       main,
+      permissions: permissions.permissions,
+      permissionsDeclared: permissions.permissionsDeclared,
     },
     mainPath,
   };
@@ -108,6 +149,8 @@ function list() {
         description: '',
         author: '',
         enabled: false,
+        permissions: { network: [] },
+        permissionsDeclared: false,
         error: info.error,
         installedAt: 0,
       });
@@ -258,6 +301,132 @@ function install(zipPath, options = {}) {
   }
 }
 
+function inspect(zipPath) {
+  const sourceFile = path.resolve(String(zipPath || ''));
+  if (!fs.existsSync(sourceFile)) throw new Error('插件压缩包不存在');
+  const stat = fs.statSync(sourceFile);
+  if (!stat.isFile()) throw new Error('插件路径不是文件');
+  if (stat.size > MAX_TOTAL_BYTES) throw new Error('插件压缩包过大（上限 25 MB）');
+  const entries = listZipEntries(sourceFile);
+  if (!entries.length) throw new Error('插件压缩包是空的');
+  if (entries.length > MAX_FILES) throw new Error(`插件文件过多（上限 ${MAX_FILES} 个）`);
+  const prefix = findPluginRoot(entries);
+  if (prefix === null) throw new Error('插件包根目录必须包含 plugin.json');
+  const temp = path.join(pluginsDir(), `.inspect-${process.pid}-${Date.now()}`);
+  fs.mkdirSync(temp, { recursive: true });
+  try {
+    extractZip(sourceFile, temp, {
+      maxOutputLength: MAX_TOTAL_BYTES,
+      filter: (name) => {
+        const normalized = name.replace(/\\/g, '/');
+        if (!normalized.startsWith(prefix)) return false;
+        const rel = normalized.slice(prefix.length);
+        return Boolean(rel) && !rel.startsWith('/') && !rel.includes('../') && !rel.endsWith('/');
+      },
+    });
+    const rootDir = prefix ? path.join(temp, prefix.replace(/\/$/, '')) : temp;
+    const info = readManifest(rootDir, '', { enforceFolder: false });
+    if (info.error) throw new Error(info.error);
+    return {
+      ok: true,
+      manifest: info.manifest,
+      filePath: sourceFile,
+      size: stat.size,
+    };
+  } finally {
+    try { fs.rmSync(temp, { recursive: true, force: true }); } catch (err) { /* ignore */ }
+  }
+}
+
+function safeHttpsUrl(value) {
+  const text = String(value || '').trim();
+  if (!/^https:\/\//i.test(text)) return '';
+  try {
+    const parsed = new URL(text);
+    if (!parsed.hostname || parsed.username || parsed.password) return '';
+    return parsed.toString();
+  } catch (err) {
+    return '';
+  }
+}
+
+function marketEntry(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || '').trim().toLowerCase();
+  if (!ID_PATTERN.test(id)) return null;
+  const download = safeHttpsUrl(raw.download);
+  const sha256 = String(raw.sha256 || '').trim().toLowerCase();
+  if (!download || !/^[a-f0-9]{64}$/.test(sha256)) return null;
+  const permissionInfo = normalizePermissions(raw);
+  if (permissionInfo.permissionsError) return null;
+  return {
+    id,
+    name: String(raw.name || id).slice(0, 80),
+    version: String(raw.version || '0.0.0').slice(0, 32),
+    description: String(raw.description || '').slice(0, 300),
+    author: String(raw.author || '匿名作者').slice(0, 80),
+    homepage: safeHttpsUrl(raw.homepage),
+    download,
+    sha256,
+    size: Math.max(0, Number(raw.size) || 0),
+    permissions: permissionInfo.permissions,
+    permissionsDeclared: permissionInfo.permissionsDeclared,
+  };
+}
+
+async function marketIndex(indexUrl) {
+  const url = safeHttpsUrl(indexUrl);
+  if (!url) throw new Error('插件索引地址必须是 https:// 链接');
+  const data = await net.fetchJson(url, { timeout: 20000, retries: 2 });
+  const raw = Array.isArray(data) ? data : (data && Array.isArray(data.plugins) ? data.plugins : null);
+  if (!raw) throw new Error('插件索引格式错误：需要 plugins 数组');
+  if (raw.length > 200) throw new Error('插件索引条数过多（上限 200）');
+  const plugins = raw.map(marketEntry).filter(Boolean);
+  return {
+    ok: true,
+    indexUrl: url,
+    updatedAt: data && data.updatedAt ? String(data.updatedAt).slice(0, 40) : '',
+    plugins,
+    skipped: raw.length - plugins.length,
+  };
+}
+
+async function installFromMarket(entry, options = {}) {
+  const normalized = marketEntry(entry);
+  if (!normalized) throw new Error('插件索引条目无效，或缺少 SHA-256 校验值');
+  const cache = path.join(config.cacheDir(), 'plugin-market');
+  fs.mkdirSync(cache, { recursive: true });
+  const zipFile = path.join(cache, `${normalized.id}-${Date.now()}.zip`);
+  try {
+    await net.downloadFile(normalized.download, zipFile, { retries: 2 });
+    const actual = await net.sha256File(zipFile);
+    if (!actual || actual.toLowerCase() !== normalized.sha256) {
+      throw new Error('插件包 SHA-256 校验失败，已拒绝安装');
+    }
+    // 索引里的权限声明只是安装前的展示；下载后必须以插件包里的
+    // plugin.json 为准。若两者不一致，拒绝安装，避免“展示 A、实际 B”。
+    const inspected = inspect(zipFile);
+    const actualNetwork = Array.isArray(inspected.manifest.permissions && inspected.manifest.permissions.network)
+      ? inspected.manifest.permissions.network.slice().sort()
+      : [];
+    const expectedNetwork = normalized.permissions.network.slice().sort();
+    if (inspected.manifest.id !== normalized.id || JSON.stringify(actualNetwork) !== JSON.stringify(expectedNetwork)) {
+      throw new Error('插件包声明的 id 或联网权限与索引不一致，已拒绝安装');
+    }
+    const installed = install(zipFile, { overwrite: Boolean(options.overwrite), enabled: options.enabled !== false });
+    return Object.assign({ ok: true }, installed, {
+      market: {
+        id: normalized.id,
+        version: normalized.version,
+        permissions: normalized.permissions,
+        permissionsDeclared: normalized.permissionsDeclared,
+      },
+    });
+  } finally {
+    try { fs.rmSync(zipFile, { force: true }); } catch (err) { /* ignore */ }
+  }
+}
+
 function openDir() {
   return pluginsDir();
 }
@@ -265,10 +434,13 @@ function openDir() {
 module.exports = {
   list,
   install,
+  inspect,
   setEnabled,
   remove,
   source,
   pluginsDir,
   openDir,
+  marketIndex,
+  installFromMarket,
   API_VERSION,
 };

@@ -17,6 +17,9 @@ const curseforge = require('./curseforge');
 
 const API = 'https://api.modrinth.com/v2';
 const LOADERS = new Set(['fabric', 'forge', 'neoforge', 'quilt']);
+// 这些是服务端插件/数据包平台。客户端实例的 mods 目录不能加载它们，
+// 不能因为项目同时发布了 Paper/Spigot 文件就被“最新版本”选中。
+const SERVER_ONLY_LOADERS = new Set(['paper', 'spigot', 'bukkit', 'folia', 'purpur', 'velocity', 'bungeecord', 'waterfall', 'datapack']);
 const SEARCH_TTL = 120000;
 const VERSION_TTL = 120000;
 const cache = new Map();
@@ -56,6 +59,25 @@ function loaderForVersion(version) {
 
 function cleanText(value, max) {
   return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]/g, '').slice(0, max || 500);
+}
+
+function versionLoaders(version) {
+  return (version && Array.isArray(version.loaders) ? version.loaders : [])
+    .map((item) => String(item || '').toLowerCase())
+    .filter(Boolean);
+}
+
+function isClientVersion(version) {
+  const loaders = versionLoaders(version);
+  if (!loaders.length) return true;
+  return loaders.some((loader) => LOADERS.has(loader))
+    && !loaders.every((loader) => SERVER_ONLY_LOADERS.has(loader));
+}
+
+function clientSideRank(value) {
+  // 只把纯服务端项目沉底，保留 Modrinth 的相关度/下载量顺序；不要因为
+  // “客户端必需”就把 Hotkey 之类的附属模组排到主模组前面。
+  return value === 'unsupported' ? 1 : 0;
 }
 
 function validateId(value, label) {
@@ -128,12 +150,16 @@ async function search(options = {}) {
   const gameVersion = cleanText(options.gameVersion, 40).trim();
   const loader = normalizeLoader(options.loader);
   const category = cleanText(options.category, 40).trim();
+  const projectType = ['mod', 'resourcepack', 'shader', 'datapack', 'modpack'].includes(String(options.projectType || ''))
+    ? String(options.projectType)
+    : 'mod';
   const limit = Math.max(1, Math.min(30, Number(options.limit) || 20));
   const offset = Math.max(0, Math.min(1000, Number(options.offset) || 0));
 
-  const facets = [['project_type:mod']];
+  const facets = [[`project_type:${projectType}`]];
   if (gameVersion) facets.push([`versions:${gameVersion}`]);
-  if (loader) facets.push([`categories:${loader}`]);
+  // 资源包 / 光影 / 数据包不使用 Fabric/Forge 加载器分类，避免把结果过滤空。
+  if (projectType === 'mod' && loader) facets.push([`categories:${loader}`]);
   if (/^[a-z0-9-]+$/.test(category)) facets.push([`categories:${category}`]);
 
   const params = new URLSearchParams({
@@ -151,6 +177,7 @@ async function search(options = {}) {
   const hits = (Array.isArray(data.hits) ? data.hits : []).map((hit) => ({
     source: 'Modrinth',
     projectId: String(hit.project_id || ''),
+    projectType: cleanText(hit.project_type, 20) || projectType,
     slug: cleanText(hit.slug, 100),
     title: cleanText(hit.title, 160),
     description: cleanText(hit.description, 500),
@@ -165,8 +192,15 @@ async function search(options = {}) {
     dateModified: hit.date_modified || '',
     latestVersion: String(hit.latest_version || ''),
     license: cleanText(hit.license, 80),
+    clientSide: cleanText(hit.client_side, 20) || 'unknown',
+    serverSide: cleanText(hit.server_side, 20) || 'unknown',
+    externalUrl: `https://modrinth.com/${cleanText(hit.project_type, 20) || projectType}/${encodeURIComponent(cleanText(hit.slug, 100) || String(hit.project_id || ''))}`,
     installable: true,
   })).filter((hit) => hit.projectId);
+
+  // 搜索结果里把纯客户端/客户端可选的项目排在前面；纯服务端插件仍然保留，
+  // 但会在卡片上标记，并禁止安装到客户端实例。
+  hits.sort((a, b) => clientSideRank(a.clientSide) - clientSideRank(b.clientSide));
 
   const result = {
     source: 'Modrinth',
@@ -176,6 +210,7 @@ async function search(options = {}) {
     query,
     gameVersion,
     loader,
+    projectType,
     category,
     hits,
   };
@@ -187,7 +222,8 @@ async function getVersions(options = {}) {
   const projectId = validateId(options.projectId, '项目');
   const gameVersion = cleanText(options.gameVersion, 40).trim();
   const loader = normalizeLoader(options.loader);
-  const key = `versions:${projectId}:${gameVersion}:${loader}`;
+  const clientOnly = options.clientOnly === true;
+  const key = `versions:${projectId}:${gameVersion}:${loader}:${clientOnly ? 'client' : 'any'}`;
   const cached = cacheGet(key);
   if (cached) return cached;
 
@@ -199,6 +235,9 @@ async function getVersions(options = {}) {
   const versions = (Array.isArray(raw) ? raw : [])
     .map(mapVersion)
     .filter(Boolean)
+    .filter((version) => (loader
+      ? versionLoaders(version).includes(loader)
+      : (!clientOnly || isClientVersion(version))))
     .sort((a, b) => String(b.datePublished).localeCompare(String(a.datePublished)));
 
   const result = { source: 'Modrinth', projectId, gameVersion, loader, versions };
@@ -430,11 +469,17 @@ async function install(options = {}) {
   const signal = options.signal || null;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
 
+  if (!loader) {
+    const error = new Error('当前实例是原版，没有 Forge/Fabric/NeoForge/Quilt 加载器；模组不会生效。请先在「版本」页安装加载器，再回来安装模组。');
+    error.code = 'NO_LOADER';
+    throw error;
+  }
+
   let initial = null;
   if (options.versionId) {
     initial = await getVersion(options.versionId);
   } else {
-    const result = await getVersions({ projectId, gameVersion, loader });
+    const result = await getVersions({ projectId, gameVersion, loader, clientOnly: true });
     initial = result.versions[0] || null;
   }
   if (!initial) {
@@ -578,6 +623,92 @@ async function install(options = {}) {
   };
 }
 
+async function lookupBySha1(filePath) {
+  try {
+    const hash = await net.sha1File(filePath);
+    if (!hash) return null;
+    const raw = await net.fetchJson(`${API}/version_file/${encodeURIComponent(hash)}?algorithm=sha1`, {
+      timeout: 20000,
+      retries: 1,
+    });
+    return mapVersion(raw);
+  } catch (err) {
+    // 404 表示这个 JAR 没有发布到 Modrinth，属于正常情况。
+    if (err && (err.status === 404 || /HTTP 404|Not Found/i.test(err.message))) return null;
+    throw err;
+  }
+}
+
+/**
+ * 已安装模组更新检查：先用 JAR 的 SHA1 反查 Modrinth 版本，再按当前
+ * 游戏版本和加载器拿最新版本。没有发布到 Modrinth 的模组会被跳过。
+ */
+async function checkUpdates(options = {}) {
+  const target = options.target || {};
+  const mods = Array.isArray(options.mods) ? options.mods : [];
+  const gameVersion = String(options.gameVersion || target.mcVersion || '').trim();
+  const loader = normalizeLoader(options.loader || loaderForVersion(target));
+  const limit = Math.max(1, Math.min(80, Number(options.limit) || 40));
+  const enabled = mods.filter((mod) => mod && mod.enabled && mod.filePath && /\.jar$/i.test(mod.filename || ''));
+  const selected = enabled.slice(0, limit);
+  const updates = [];
+  const errors = [];
+  let checked = 0;
+  let skipped = 0;
+
+  async function inspectOne(mod) {
+    try {
+      const current = await lookupBySha1(mod.filePath);
+      if (!current) {
+        skipped += 1;
+        return;
+      }
+      checked += 1;
+      if (!current.projectId) {
+        skipped += 1;
+        return;
+      }
+      const result = await getVersions({
+        projectId: current.projectId,
+        gameVersion,
+        loader,
+      });
+      const latest = result.versions && result.versions[0];
+      if (!latest) return;
+      const sameVersion = String(latest.versionNumber || '') === String(mod.version || '');
+      if (sameVersion || (current.id && latest.id === current.id)) return;
+      updates.push({
+        filename: mod.filename,
+        name: mod.name || mod.filename,
+        currentVersion: mod.version || current.versionNumber || '',
+        latestVersion: latest.versionNumber || latest.name || '',
+        projectId: current.projectId,
+        versionId: latest.id,
+        downloadUrl: latest.file && latest.file.url ? latest.file.url : '',
+        pageUrl: `https://modrinth.com/project/${encodeURIComponent(current.projectId)}`,
+        source: 'Modrinth',
+      });
+    } catch (err) {
+      errors.push(`${mod.filename}: ${err.message}`);
+    }
+  }
+
+  for (let index = 0; index < selected.length; index += 3) {
+    await Promise.all(selected.slice(index, index + 3).map(inspectOne));
+  }
+
+  updates.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  return {
+    source: 'Modrinth',
+    gameVersion,
+    loader,
+    checked,
+    skipped,
+    errors,
+    updates,
+  };
+}
+
 async function dispatchSearch(options = {}) {
   if (options.source === 'curseforge') return curseforge.search(options);
   return search(options);
@@ -610,6 +741,7 @@ module.exports = {
     : previewDependencies(options)),
   previewDependencies,
   categories,
+  checkUpdates,
   loaderForVersion,
   normalizeLoader,
   formatBytes,

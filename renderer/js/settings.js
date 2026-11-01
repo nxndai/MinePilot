@@ -7,6 +7,7 @@
   let cleanerBusy = false;
   let cleanerTimer = null;
   let cleanerStats = null;
+  let removeBusy = false;
 
   function onlineDownloadsEnabled() {
     return Boolean(MP.state.settings && MP.state.settings.onlineDownloads);
@@ -224,6 +225,141 @@
         detail.textContent = `已找到 ${list.length} 个 Java，最高为 Java ${best.major}（${best.vendor}）`;
       }
     }
+    renderJavaList();
+    renderJavaOverrides();
+  }
+
+  function renderJavaList() {
+    const root = $('#java-list');
+    if (!root) return;
+    const list = MP.state.javaList || [];
+    const settings = MP.state.settings || {};
+    const current = settings.javaPath || '';
+    const count = $('#java-count');
+    if (count) count.textContent = list.length ? `${list.length} 个` : '未检测到';
+    if (!list.length) {
+      root.innerHTML = '<p class="muted-sm java-empty">没有检测到 Java。点击上方“安装 Java”，或手动添加 java.exe / java 路径。</p>';
+      return;
+    }
+    root.innerHTML = list.map((item) => {
+      const isDefault = current && item.path === current;
+      return `<div class="java-item ${isDefault ? 'is-default' : ''}">
+        <div class="java-item-main">
+          <div class="java-item-title">
+            <strong>Java ${esc(item.major)}</strong>
+            <span class="badge gray">${esc(item.vendor || '未知发行版')}</span>
+            ${item.bits ? `<span class="badge gray">${esc(item.bits)} 位</span>` : ''}
+            ${isDefault ? '<span class="badge green">默认</span>' : ''}
+            ${item.source === 'manual' ? '<span class="badge violet">手动添加</span>' : ''}
+          </div>
+          <div class="java-item-meta">${esc(item.version || '—')} · ${esc(item.major)} · ${esc(item.arch || '未知架构')}</div>
+          <div class="java-item-path" title="${esc(item.path)}">${esc(item.path)}</div>
+        </div>
+        <div class="java-item-actions">
+          ${isDefault ? '' : `<button class="btn small ghost" data-java-default="${esc(item.path)}">设为默认</button>`}
+          <button class="btn small ghost danger-text" data-java-remove="${esc(item.path)}">隐藏</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderJavaOverrides() {
+    const root = $('#java-overrides');
+    if (!root) return;
+    const versions = MP.state.versions || [];
+    const list = MP.state.javaList || [];
+    const settings = MP.state.settings || {};
+    const overrides = settings.javaVersionOverrides || {};
+    if (!versions.length) {
+      root.innerHTML = '<p class="muted-sm java-empty">还没有安装游戏版本。安装后会在这里按版本指定 Java。</p>';
+      return;
+    }
+    root.innerHTML = versions.map((version) => {
+      const selected = overrides[version.id] || '';
+      const options = ['<option value="">自动匹配</option>'].concat(list.map((item) => (
+        `<option value="${esc(item.path)}"${item.path === selected ? ' selected' : ''}>Java ${esc(item.major)} · ${esc(item.vendor)}${item.bits ? ` · ${item.bits} 位` : ''}</option>`
+      ))).join('');
+      return `<div class="java-override-row">
+        <div class="java-override-label">
+          <strong>${esc(version.id)}</strong>
+          <span>MC ${esc(version.mcVersion || '?')} · ${esc(Array.isArray(version.loaders) && version.loaders[0] ? version.loaders[0].name : '原版')}</span>
+        </div>
+        <select class="input select" data-java-override="${esc(version.id)}">${options}</select>
+      </div>`;
+    }).join('');
+  }
+
+  async function saveJavaOverride(versionId, javaPath) {
+    const current = (MP.state.settings && MP.state.settings.javaVersionOverrides) || {};
+    const next = Object.assign({}, current);
+    if (javaPath) next[versionId] = javaPath;
+    else delete next[versionId];
+    await save({ javaVersionOverrides: next });
+    MP.toast(javaPath ? `已为 ${versionId} 指定 Java` : `已恢复 ${versionId} 的自动匹配`, 'ok');
+  }
+
+  async function setDefaultJava(javaPath) {
+    if (!javaPath) return;
+    await save({ javaPath });
+    renderJava();
+    MP.toast('默认 Java 已更新', 'ok');
+  }
+
+  async function hideJava(javaPath) {
+    if (!javaPath) return;
+    const item = (MP.state.javaList || []).find((entry) => entry.path === javaPath);
+    const ok = await MP.confirm({
+      title: '从列表隐藏 Java',
+      text: `只会从 MinePilot 的 Java 列表中隐藏${item ? ` Java ${item.major}（${item.vendor}）` : '这个 Java'}，不会删除磁盘文件。之后可以通过“重新检测”或手动添加恢复。`,
+      confirmLabel: '隐藏',
+      danger: true,
+    });
+    if (!ok) return;
+    const result = await MP.api.invoke('java:remove-path', { path: javaPath });
+    if (!result || !result.ok) {
+      MP.toast(`隐藏失败：${(result && result.error) || '未知错误'}`, 'err', 5000);
+      return;
+    }
+    MP.state.javaList = result.list || [];
+    try {
+      const fresh = await MP.api.invoke('settings:get');
+      if (fresh && typeof fresh === 'object') MP.state.settings = fresh;
+    } catch (err) { /* 用本地状态兜底 */ }
+    renderJava();
+    MP.toast(result.message || '已隐藏', 'ok');
+  }
+
+  async function addJava() {
+    const payload = {};
+    if (!window.mp || !window.mp.native) {
+      const value = await MP.prompt({
+        title: '添加 Java',
+        label: '输入 java.exe / java 的完整路径，或 Java 安装目录。浏览器版无法打开原生文件选择器。',
+        placeholder: '例如 C:\\Program Files\\Java\\jdk-21\\bin\\java.exe',
+        confirmLabel: '添加',
+        maxlength: 500,
+      });
+      if (!value) return;
+      payload.path = value;
+    }
+    const result = await MP.api.invoke('java:add-path', payload);
+    if (!result || !result.ok) {
+      if (result && result.canceled) return;
+      MP.toast(`添加失败：${(result && result.error) || '未知错误'}`, 'err', 5500);
+      return;
+    }
+    MP.state.javaList = result.list || [];
+    if (MP.state.settings && result.java) {
+      MP.state.settings.javaPath = result.java.path;
+      MP.state.settings.javaExtraPaths = Array.from(new Set([...(MP.state.settings.javaExtraPaths || []), result.java.path]));
+    }
+    renderJava();
+    MP.toast(result.message || '已添加 Java', 'ok', 4500);
+  }
+
+  async function openJavaDir() {
+    const result = await MP.api.invoke('java:open-folder');
+    if (result && result.ok === false) MP.toast(result.error || '无法打开 Java 目录', 'err', 5000);
   }
 
   function render() {
@@ -307,26 +443,39 @@
       MP.toast('在线下载已关闭。请先勾选“在线下载”。', 'warn', 5000);
       return;
     }
-    const body = `<p class="muted-sm">选择要安装的 Java 版本。Minecraft 1.17–1.20.4 需要 Java 17；1.20.5 及以上需要 Java 21；1.16.5 及以下通常使用 Java 8。</p>
-      <select id="mp-java-major" class="input select" style="width:100%;margin-top:8px">
-        <option value="21">Java 21（推荐）</option>
-        <option value="17">Java 17</option>
-        <option value="8">Java 8</option>
-      </select>`;
-    const major = await MP.modal({
+    const body = `<p class="muted-sm">选择要安装的 Java 版本和发行版。Minecraft 1.17–1.20.4 需要 Java 17；1.20.5 及以上需要 Java 21；1.16.5 及以下通常使用 Java 8。</p>
+      <div class="java-install-grid">
+        <select id="mp-java-major" class="input select">
+          <option value="21">Java 21（推荐）</option>
+          <option value="17">Java 17</option>
+          <option value="11">Java 11</option>
+          <option value="8">Java 8</option>
+        </select>
+        <select id="mp-java-vendor" class="input select">
+          <option value="temurin">Eclipse Temurin（Adoptium）</option>
+          <option value="zulu">Azul Zulu</option>
+          <option value="corretto">Amazon Corretto</option>
+        </select>
+      </div>
+      <p class="muted-sm" style="margin-top:8px">下载失败时会提示切换发行版；所有安装包都会校验 SHA256。</p>`;
+    const chosen = await MP.modal({
       title: '安装 Java 运行环境',
+      width: 520,
       body,
       actions: [
         { label: '取消', value: null },
         {
           label: '开始下载',
           kind: 'primary',
-          onClick: (box) => box.querySelector('#mp-java-major').value,
+          onClick: (box) => ({
+            major: box.querySelector('#mp-java-major').value,
+            vendor: box.querySelector('#mp-java-vendor').value,
+          }),
         },
       ],
     });
-    if (!major) return;
-    const ok = await MP.installJavaFlow(Number(major));
+    if (!chosen) return;
+    const ok = await MP.installJavaFlow(Number(chosen.major), chosen.vendor);
     if (ok) renderJava();
   }
 
@@ -393,6 +542,46 @@
     }
   }
 
+  async function removeLauncher() {
+    if (removeBusy) return;
+    if (!window.mp || !window.mp.native) {
+      MP.toast('仅桌面版支持删除启动器', 'warn', 4000);
+      return;
+    }
+
+    const confirmed = await MP.modal({
+      title: '删除启动器',
+      width: 460,
+      body: `<p>将强制关闭 MinePilot，并删除启动器程序、桌面和开始菜单快捷方式以及卸载登记。</p>
+        <p class="muted-sm">设置、账户、缓存、皮肤和 Minecraft 游戏存档会保留。</p>
+        <p class="muted-sm">此操作不可撤销；删除后需要重新下载安装包才能再次使用 MinePilot。</p>`,
+      actions: [
+        { label: '取消', value: false },
+        { label: '删除启动器', kind: 'danger', value: true },
+      ],
+    });
+    if (confirmed !== true) return;
+
+    removeBusy = true;
+    const button = $('#btn-remove-launcher');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '正在删除…';
+    }
+    try {
+      const result = await MP.api.invoke('app:remove');
+      if (!result || !result.ok) throw new Error((result && result.error) || '删除启动器失败');
+      MP.toast('正在删除启动器，窗口即将关闭', 'warn', 4000);
+    } catch (err) {
+      removeBusy = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = '删除启动器';
+      }
+      MP.toast(`删除启动器失败：${err.message}`, 'err', 8000);
+    }
+  }
+
   function bindRange(input, min, max, onChange, formatter) {
     if (!input) return;
     input.addEventListener('input', () => {
@@ -414,8 +603,27 @@
     });
     MP.on('#btn-detect-java', 'click', detectJava);
     MP.on('#btn-download-java', 'click', installJava);
+    MP.on('#btn-java-add', 'click', addJava);
+    MP.on('#btn-java-open', 'click', openJavaDir);
+    MP.on('#java-list', 'click', (event) => {
+      const setButton = event.target.closest('[data-java-default]');
+      if (setButton) {
+        setDefaultJava(setButton.dataset.javaDefault || '');
+        return;
+      }
+      const removeButton = event.target.closest('[data-java-remove]');
+      if (removeButton) hideJava(removeButton.dataset.javaRemove || '');
+    });
+    MP.on('#java-overrides', 'change', (event) => {
+      const select = event.target.closest('[data-java-override]');
+      if (select) saveJavaOverride(select.dataset.javaOverride || '', select.value);
+    });
     MP.on('#btn-clean-memory', 'click', cleanMemory);
     MP.on('#btn-clean-memory-top', 'click', cleanMemory);
+    MP.on('#btn-remove-launcher', 'click', removeLauncher);
+
+    const canRemove = Boolean(window.mp && window.mp.native && MP.state.info && MP.state.info.platform === 'win32');
+    if (!canRemove && $('#remove-card')) $('#remove-card').classList.add('hidden');
 
     MP.on('#set-java', 'change', (event) => {
       save({ javaPath: event.target.value });

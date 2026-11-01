@@ -68,9 +68,21 @@
           <svg viewBox="0 0 20 20"><path d="M10 3v9"/><path d="m6.2 8.8 3.8 3.8 3.8-3.8"/><path d="M3.2 15.8h13.6"/></svg>
           <span>下载</span>
         </button>
+        <button class="nav-item" data-view="saves">
+          <svg viewBox="0 0 20 20"><path d="M4 3.5h9l3 3V17H4V3.5Z"/><path d="M6.5 3.5v5h7v-5M6.5 17v-5h7v5"/></svg>
+          <span>存档</span>
+        </button>
         <button class="nav-item" data-view="mods">
           <svg viewBox="0 0 20 20"><path d="M10 3 16 6.2v7.6L10 17l-6-3.2V6.2L10 3Z"/><path d="m4 6.2 6 3.2 6-3.2M10 9.4V17"/></svg>
           <span>模组</span>
+        </button>
+        <button class="nav-item" data-view="content">
+          <svg viewBox="0 0 20 20"><path d="M4 4.5h5v5H4zM11 4.5h5v5h-5zM4 11.5h5v5H4zM11 11.5h5v5h-5z"/></svg>
+          <span>内容</span>
+        </button>
+        <button class="nav-item" data-view="netplay">
+          <svg viewBox="0 0 20 20"><path d="M3.5 6.5h13v7h-13zM6 9.5h3M12 9.5h2M7.5 13.5v2M12.5 13.5v2"/></svg>
+          <span>联机</span>
         </button>
         <button class="nav-item" data-view="skin">
           <svg viewBox="0 0 20 20"><path d="M10 3.2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/><path d="M4.2 17c.5-3.2 2.7-5 5.8-5s5.3 1.8 5.8 5"/><path d="M6.2 10.2 3.6 12l1.5 2.7M13.8 10.2 16.4 12l-1.5 2.7"/></svg>
@@ -106,7 +118,7 @@
           <span class="status-dot warn"></span>
           <span id="java-stat-text">正在检测 Java…</span>
         </div>
-        <div class="side-version">MinePilot v1.8.2</div>
+        <div class="side-version">MinePilot v1.11.1</div>
       </div>
     </aside>
 
@@ -253,6 +265,66 @@
         </div>
       </section>
 
+      <!-- ============ 存档 ============ -->
+      <section class="view" id="view-saves">
+        <div class="page-head">
+          <div>
+            <h1>存档管理</h1>
+            <p class="sub">按实例浏览 saves/，备份到 backups/，支持 ZIP 导入、导出与删除前保护</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip"><span class="status-dot"></span><span id="save-instance-chip">选择实例</span></div>
+          </div>
+        </div>
+
+        <div class="toolbar card save-toolbar">
+          <div class="mod-target-wrap">
+            <span class="muted-sm">当前实例</span>
+            <select id="save-target" class="input select" aria-label="选择存档所属实例"></select>
+          </div>
+          <button class="btn ghost small" id="btn-save-refresh">刷新</button>
+          <button class="btn ghost small" id="btn-save-import">导入 ZIP</button>
+          <button class="btn ghost small" id="btn-save-open">打开 saves</button>
+          <button class="btn ghost small" id="btn-save-open-backups">打开 backups</button>
+        </div>
+
+        <div class="card save-summary">
+          <div>
+            <strong id="save-summary-title">正在读取存档…</strong>
+            <p class="muted-sm" id="save-summary-text">世界名称、最后游玩时间、大小和游戏版本都会显示在这里。</p>
+          </div>
+          <span class="save-summary-size" id="save-summary-size">—</span>
+        </div>
+
+        <div class="card save-card">
+          <div class="save-card-head">
+            <div>
+              <h3>世界存档 <span class="badge gray" id="save-count">0 个</span></h3>
+              <p class="muted-sm">删除前默认先创建备份；恢复前会要求确认覆盖同名世界。</p>
+            </div>
+          </div>
+          <div class="save-list" id="save-list"></div>
+          <div class="empty hidden" id="save-empty">
+            <strong>这个实例还没有存档</strong>
+            <span>进入游戏创建世界，或点击上方「导入 ZIP」恢复一个存档。</span>
+          </div>
+        </div>
+
+        <div class="card save-card">
+          <div class="save-card-head">
+            <div>
+              <h3>备份列表 <span class="badge gray" id="save-backup-count">0 个</span></h3>
+              <p class="muted-sm" id="save-backups-dir">备份保存在实例目录的 backups/</p>
+            </div>
+          </div>
+          <div class="save-backup-list" id="save-backup-list"></div>
+          <div class="empty hidden" id="save-backup-empty">
+            <strong>还没有备份</strong>
+            <span>在世界存档右侧点「备份」，会生成一个可恢复的 ZIP。</span>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ 下载 ============ -->
       <section class="view" id="view-download">
         <div class="page-head">
@@ -342,10 +414,39 @@
               <div class="installed-sub" id="installed-sub">勾选复选框启用或禁用，不会移动 .jar 文件</div>
             </div>
             <div class="installed-actions">
+              <button class="btn ghost small" id="btn-installed-check">检查问题</button>
+              <button class="btn ghost small" id="btn-installed-updates">检查更新</button>
               <button class="btn ghost small" id="btn-installed-refresh">刷新</button>
               <button class="btn ghost small" id="btn-installed-open">打开目录</button>
             </div>
           </div>
+          <div class="installed-tools">
+            <input id="installed-filter" class="input" placeholder="筛选名称、文件名或 modid" autocomplete="off">
+            <select id="installed-loader-filter" class="input select" aria-label="按加载器筛选">
+              <option value="">全部加载器</option>
+              <option value="fabric">Fabric</option>
+              <option value="forge">Forge</option>
+              <option value="neoforge">NeoForge</option>
+              <option value="quilt">Quilt</option>
+            </select>
+            <select id="installed-side-filter" class="input select" aria-label="按客户端/服务端筛选">
+              <option value="">全部端</option>
+              <option value="client">仅客户端</option>
+              <option value="server">仅服务端</option>
+              <option value="both">通用</option>
+            </select>
+            <select id="installed-status-filter" class="input select" aria-label="按状态筛选">
+              <option value="">全部状态</option>
+              <option value="issues">有问题的</option>
+              <option value="enabled">已启用</option>
+              <option value="disabled">已禁用</option>
+            </select>
+            <span class="muted-sm" id="installed-filter-count"></span>
+            <span class="installed-tools-spacer"></span>
+            <button class="btn small ghost" id="btn-installed-enable-all">全部启用</button>
+            <button class="btn small ghost" id="btn-installed-disable-all">全部禁用</button>
+          </div>
+          <div class="installed-health hidden" id="installed-health"></div>
           <div class="installed-list" id="installed-list"></div>
           <div class="installed-empty" id="installed-empty">
             <strong>还没有安装模组</strong>
@@ -394,6 +495,10 @@
         <div class="empty hidden" id="mod-empty">
           <h2 id="mod-empty-title">搜索模组</h2>
           <p id="mod-empty-text">输入模组名称，或直接浏览当前版本的热门模组。</p>
+          <div class="empty-actions">
+            <button class="btn ghost small" id="btn-mod-copy-diag">复制搜索信息</button>
+            <button class="btn ghost small" id="btn-mod-view-log">查看日志内容</button>
+          </div>
         </div>
         <div class="mod-more hidden" id="mod-more-wrap">
           <button class="btn ghost small" id="btn-mod-more">加载更多</button>
@@ -420,6 +525,171 @@
       </section>
 
       <!-- ============ 皮肤 ============ -->
+      <section class="view" id="view-content">
+        <div class="page-head">
+          <div>
+            <h1>资源包、光影与数据包</h1>
+            <p class="sub">按实例管理游戏内容；资源包和光影可以直接启用/停用，数据包按目录启停。也可以从 Modrinth 搜索下载。</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip"><span class="status-dot"></span><span id="content-instance-chip">选择实例</span></div>
+          </div>
+        </div>
+
+        <div class="toolbar card content-toolbar">
+          <div class="mod-target-wrap">
+            <span class="muted-sm">当前实例</span>
+            <select id="content-target" class="input select" aria-label="选择目标版本"></select>
+          </div>
+          <div class="segmented" id="content-tabs">
+            <button class="active" data-content-type="resourcepack">资源包</button>
+            <button data-content-type="shaderpack">光影</button>
+            <button data-content-type="datapack">数据包</button>
+          </div>
+          <div class="content-world-wrap hidden" id="content-world-wrap">
+            <span class="muted-sm">世界</span>
+            <select id="content-world" class="input select" aria-label="选择世界">
+              <option value="">全部世界</option>
+            </select>
+          </div>
+          <button class="btn ghost small" id="btn-content-refresh">刷新</button>
+          <button class="btn ghost small" id="btn-content-open">打开目录</button>
+          <button class="btn primary small" id="btn-content-import">导入 ZIP</button>
+          <input type="file" id="content-file-input" class="hidden" accept=".zip,application/zip">
+        </div>
+
+        <div class="card installed-card">
+          <div class="installed-head">
+            <div>
+              <div class="installed-title"><span id="content-list-title">已安装资源包</span> <span class="badge gray" id="content-count">0 个</span></div>
+              <div class="installed-sub" id="content-list-sub">启用状态会写入当前实例的 options.txt / iris.properties</div>
+            </div>
+            <div class="installed-actions">
+              <button class="btn ghost small" id="btn-content-rescan">重新扫描</button>
+            </div>
+          </div>
+          <div class="content-list" id="content-list"></div>
+          <div class="installed-empty" id="content-empty">
+            <strong>还没有内容</strong>
+            <span>导入 ZIP，或从 Modrinth 搜索下载。</span>
+          </div>
+        </div>
+
+        <div class="card content-search-card">
+          <div class="content-search-head">
+            <div>
+              <div class="installed-title">从 Modrinth 下载</div>
+              <div class="installed-sub">搜索资源包、光影或数据包；下载后可以直接启用。</div>
+            </div>
+            <div class="content-search-bar">
+              <input id="content-search" class="input" placeholder="搜索，例如 Faithful、Complementary" autocomplete="off">
+              <button class="btn primary small" id="btn-content-search">搜索</button>
+            </div>
+          </div>
+          <div class="content-search-status muted-sm" id="content-search-status">需要先在设置中开启“在线下载”。</div>
+          <div class="content-results" id="content-results"></div>
+        </div>
+
+        <div class="install-bar card hidden" id="content-progress-bar">
+          <div class="install-head">
+            <div class="install-title">
+              <strong id="content-pb-title">正在下载内容</strong>
+              <span id="content-pb-phase">准备中…</span>
+            </div>
+          </div>
+          <div class="progress"><div class="progress-fill" id="content-pb-fill"></div></div>
+          <div class="install-meta">
+            <span id="content-pb-percent">0%</span>
+            <span id="content-pb-size"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-netplay">
+        <div class="page-head">
+          <div>
+            <h1>联机与内网穿透</h1>
+            <p class="sub">用你已有的 Terracotta、EasyTier 或 frp 配置一键启动联机工具。MinePilot 不捆绑第三方程序，也不绕过 Minecraft 账户认证。</p>
+          </div>
+          <div class="head-chips">
+            <div class="chip"><span class="status-dot"></span><span id="netplay-head-status">尚未启动</span></div>
+          </div>
+        </div>
+
+        <div class="netplay-warning" id="netplay-warning" data-i18n-html="netplay.warning">
+          <strong>需要你自行准备联机工具</strong>
+          <span>Terracotta / EasyTier / frp 的可执行文件和房间配置由你提供。启动器只执行你明确选择的本机文件，并展示本机局域网地址。</span>
+        </div>
+
+        <div class="netplay-layout">
+          <div class="card">
+            <div class="installed-head">
+              <div>
+                <div class="installed-title">一键开房间</div>
+                <div class="installed-sub">启动联机工具后，把本机地址发给朋友；游戏内仍需“对局域网开放”。</div>
+              </div>
+            </div>
+            <div class="netplay-controls">
+              <label class="field">
+                <span>游戏实例</span>
+                <select id="netplay-target" class="input select"></select>
+              </label>
+              <label class="field">
+                <span>联机配置</span>
+                <select id="netplay-profile-select" class="input select"></select>
+              </label>
+              <div class="netplay-actions">
+                <button class="btn primary" id="btn-netplay-start">一键开房间</button>
+                <button class="btn ghost" id="btn-netplay-stop">停止</button>
+                <button class="btn ghost" id="btn-netplay-copy">复制地址</button>
+              </div>
+            </div>
+            <div class="netplay-status-line">
+              <span class="badge gray" id="netplay-state-badge">未运行</span>
+              <span class="muted-sm" id="netplay-status-text">选择配置后启动。</span>
+            </div>
+            <div class="netplay-addresses" id="netplay-addresses"></div>
+            <div class="netplay-log" id="netplay-log" aria-live="polite"></div>
+          </div>
+
+          <div class="card">
+            <div class="installed-head">
+              <div>
+                <div class="installed-title">配置联机工具</div>
+                <div class="installed-sub">参数按“一行一个”填写，直接传给程序，不经过 shell。</div>
+              </div>
+            </div>
+            <div class="netplay-form">
+              <label class="field"><span>配置名称</span><input id="np-name" class="input" placeholder="例如：Terracotta 房间" maxlength="60"></label>
+              <label class="field"><span>工具</span>
+                <select id="np-tool" class="input select">
+                  <option value="terracotta">Terracotta</option>
+                  <option value="easytier">EasyTier</option>
+                  <option value="frp">FRP</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+              <div class="field"><span>可执行文件</span><div class="netplay-path-row"><input id="np-exe" class="input" placeholder="C:\\Tools\\terracotta.exe" spellcheck="false"><button class="btn small ghost" id="btn-netplay-browse">选择</button></div></div>
+              <label class="field"><span>参数（每行一个）</span><textarea id="np-args" class="input" rows="4" placeholder="--room&#10;my-room" spellcheck="false"></textarea></label>
+              <label class="field"><span>工作目录（可留空）</span><input id="np-cwd" class="input" placeholder="留空则使用程序所在目录" spellcheck="false"></label>
+              <label class="netplay-check"><input type="checkbox" id="np-autocopy" checked><span>启动后自动复制本机地址</span></label>
+              <div class="netplay-form-actions">
+                <button class="btn primary small" id="btn-netplay-save">保存配置</button>
+                <button class="btn ghost small danger-text" id="btn-netplay-remove">删除当前配置</button>
+                <button class="btn ghost small" id="btn-netplay-new">新建配置</button>
+              </div>
+              <p class="muted-sm" id="netplay-form-hint">支持占位符：{gameDir}、{player}、{address}。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card netplay-guides-card">
+          <div class="installed-title">工具引导与合规说明</div>
+          <div class="netplay-guides" id="netplay-guides"></div>
+          <p class="muted-sm">这些工具各自采用独立许可证和隐私政策；请从官方仓库下载，并遵守对应服务条款。MinePilot 不提供房间服务器、不代管密钥，也不会绕过正版认证。</p>
+        </div>
+      </section>
+
       <section class="view" id="view-skin">
         <div class="page-head skin-page-head">
           <div>
@@ -640,6 +910,7 @@
             <div class="diag-actions">
               <button class="btn small primary" id="btn-diag-export-main">导出诊断报告</button>
               <button class="btn small ghost" id="btn-diag-copy">复制结论</button>
+              <button class="btn small ghost" id="btn-diag-share">分享脱敏摘要</button>
               <button class="btn small ghost" id="btn-diag-open-log">打开启动日志</button>
             </div>
           </div>
@@ -729,7 +1000,7 @@
               </div>
             </div>
             <div class="setting-row">
-              <div class="setting-label">Java 运行环境<small id="java-detail">用于启动游戏</small></div>
+              <div class="setting-label">默认 Java<small id="java-detail">用于没有单独指定 Java 的版本</small></div>
               <div class="setting-control">
                 <select id="set-java" class="input select"></select>
                 <button class="btn small ghost" id="btn-detect-java">重新检测</button>
@@ -737,6 +1008,13 @@
               </div>
             </div>
             <div class="setting-row">
+              <div class="setting-label">Java 管理<small>自动按游戏版本匹配，也可单独指定</small></div>
+              <div class="setting-control java-control">
+                <button class="btn small ghost" id="btn-java-add">添加 Java</button>
+                <button class="btn small ghost" id="btn-java-open">打开 Java 目录</button>
+              </div>
+            </div>
+          <div class="setting-row">
               <div class="setting-label">自动分配内存<small>按系统内存推荐，避免分配过大</small></div>
               <div class="setting-control">
                 <label class="switch"><input type="checkbox" id="set-memory-auto"><span></span></label>
@@ -764,6 +1042,17 @@
                 <span class="muted-sm">推荐开启，避免模组冲突</span>
               </div>
             </div>
+          </div>
+
+          <div class="card setting-card" id="java-card">
+            <div class="java-card-head">
+              <h3>已检测到的 Java</h3>
+              <span class="muted-sm" id="java-count">—</span>
+            </div>
+            <div class="java-list" id="java-list"></div>
+            <p class="muted-sm java-hint">启动时会优先使用“按版本指定”的 Java；没有指定时，自动选择满足要求的最低版本。手动移除只会从列表隐藏，不会删除磁盘文件。</p>
+            <h4 class="java-subtitle">按版本指定 Java</h4>
+            <div class="java-overrides" id="java-overrides"></div>
           </div>
 
           <div class="card setting-card">
@@ -919,7 +1208,7 @@
             <div class="setting-row column-stat">
               <div class="setting-label">当前状态<small id="update-status-text">还没有检查更新</small></div>
               <div class="setting-control update-status-control">
-                <span class="update-version-chip" id="update-version-chip">v1.8.2</span>
+                <span class="update-version-chip" id="update-version-chip">v1.11.1</span>
                 <button class="btn small ghost hidden" id="btn-open-updates">下载目录</button>
               </div>
             </div>
@@ -931,7 +1220,7 @@
 
           <div class="card setting-card wide">
             <h3>插件</h3>
-            <div class="plugin-warning">插件以页面权限运行，可以联网和读取启动器公开数据。只安装你信任来源的插件；插件 API 不提供账户令牌，也不能直接操作游戏文件。</div>
+            <div class="plugin-warning" data-i18n-html="plugin.warning">插件在 Web Worker 中运行，默认没有联网权限；只有 <code>plugin.json</code> 中 <code>permissions.network</code> 声明的域名可以访问。插件拿不到账户令牌，也不能直接操作游戏文件。只安装你信任来源的插件。</div>
             <div class="plugin-toolbar">
               <button class="btn small primary" id="btn-plugin-install">安装插件 ZIP</button>
               <button class="btn small ghost" id="btn-plugin-open-folder">打开插件目录</button>
@@ -939,8 +1228,19 @@
               <span class="muted-sm" id="plugin-status-text">插件在 Web Worker 中运行</span>
             </div>
             <div class="plugin-list" id="plugin-list"></div>
+            <div class="plugin-panels" id="plugin-panels"></div>
             <div class="plugin-command-head"><strong>插件命令</strong><span>由已启用插件注册</span></div>
             <div class="plugin-commands" id="plugin-commands"></div>
+            <div class="plugin-market">
+              <div class="plugin-command-head"><strong>插件市场</strong><span>从 HTTPS JSON 索引安装，安装前展示权限</span></div>
+              <div class="plugin-market-bar">
+                <input id="plugin-index-url" class="input" type="url" placeholder="https://raw.githubusercontent.com/.../plugin-index.json" spellcheck="false">
+                <button class="btn small primary" id="btn-plugin-market">刷新市场</button>
+                <button class="btn small ghost" id="btn-save-plugin-index">保存地址</button>
+              </div>
+              <p class="muted-sm" id="plugin-market-status">索引是可选的；留空不会联网。</p>
+              <div class="plugin-market-list" id="plugin-market-list"></div>
+            </div>
           </div>
 
           <div class="card setting-card">
@@ -961,6 +1261,17 @@
               </div>
             </div>
           </div>
+
+          <div class="card setting-card wide remove-card" id="remove-card">
+            <div class="remove-card-head">
+              <div>
+                <h3>删除启动器</h3>
+                <p class="muted-sm">不再使用 MinePilot？强制关闭并删除启动器程序、快捷方式和卸载登记。</p>
+              </div>
+              <button class="btn danger" id="btn-remove-launcher">删除启动器</button>
+            </div>
+            <p class="muted-sm remove-card-note">设置、账户、缓存和 Minecraft 游戏存档都会保留；删除后需要重新下载安装包才能再次启动。</p>
+          </div>
         </div>
       </section>
 
@@ -973,7 +1284,7 @@
           <div>
             <h1>MinePilot</h1>
             <p class="sub">一款轻量的 Minecraft Java 版启动器 · 第三方独立实现</p>
-            <div class="about-tags"><span>v1.8.2</span><span>独立应用</span><span id="about-platform">桌面端</span><span>MIT License</span></div>
+            <div class="about-tags"><span>v1.11.1</span><span>独立应用</span><span id="about-platform">桌面端</span><span>MIT License</span></div>
           </div>
         </div>
 
@@ -999,6 +1310,7 @@
             <div class="link-row">
               <button class="btn small ghost" id="btn-open-data">打开数据目录</button>
               <button class="btn small ghost" id="btn-open-logs">打开日志目录</button>
+              <button class="btn small ghost" id="btn-view-logs">查看日志内容</button>
             </div>
           </div>
 
@@ -1008,7 +1320,7 @@
                 <h3>启动器更新</h3>
                 <p class="muted-sm" id="about-update-status">检查更新前不会连接任何服务器。</p>
               </div>
-              <span class="update-version-chip" id="about-update-version">v1.8.2</span>
+              <span class="update-version-chip" id="about-update-version">v1.11.1</span>
             </div>
             <div class="about-update-actions">
               <button class="btn small ghost" id="about-check-update">检查更新</button>
@@ -1059,7 +1371,10 @@
   <script src="js/home.js"></script>
   <script src="js/versions.js"></script>
   <script src="js/download.js"></script>
+  <script src="js/saves.js"></script>
   <script src="js/mods.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/netplay.js"></script>
   <script src="js/install-ui.js"></script>
   <script src="js/account.js"></script>
   <script src="js/skin.js"></script>

@@ -37,6 +37,9 @@
     MP.on('#btn-open-logs', 'click', () => {
       MP.openLogs();
     });
+    MP.on('#btn-view-logs', 'click', () => {
+      MP.showLogs();
+    });
   }
 
   MP.views.about = { init, render, onShow: render };

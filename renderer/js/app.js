@@ -181,7 +181,7 @@
       MP.toast(`启动器初始化失败：${err.message}`, 'err', 8000);
     }
 
-    ['home', 'versions', 'download', 'mods', 'skin', 'monitor', 'diagnostics', 'settings', 'about'].forEach((name) => {
+    ['home', 'versions', 'download', 'saves', 'mods', 'content', 'netplay', 'skin', 'monitor', 'diagnostics', 'settings', 'about'].forEach((name) => {
       const view = MP.views[name];
       if (view && view.init) view.init();
     });
