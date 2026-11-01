@@ -488,7 +488,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.2.exe`，SHA256 为 `2b96e86aa3137e25e055a7bb1096b499140d37e58750c8b759c5950997b8f330`。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.2.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
