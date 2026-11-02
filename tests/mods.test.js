@@ -129,7 +129,13 @@ try {
     const net = require('../src/core/net');
     const mods = require('../src/core/mods');
     const originalFetchJson = net.fetchJson;
+    const originalDownloadFile = net.downloadFile;
     try {
+    net.downloadFile = async (url, destination) => {
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.writeFileSync(destination, 'stub jar', 'utf8');
+      return { size: 8, skipped: false };
+    };
     net.fetchJson = async (url) => {
       if (String(url).includes('/search?')) {
         return {
@@ -197,19 +203,20 @@ try {
     });
     assert.deepStrictEqual(clientVersions.versions.map((version) => version.id), ['fabric-version']);
 
-    let noLoaderError = null;
-    try {
-      await mods.install({
-        target: { id: 'vanilla', gameDir, mcVersion: '1.20.1', loaders: [] },
-        projectId: 'clientmod',
-        gameVersion: '1.20.1',
-      });
-    } catch (err) {
-      noLoaderError = err;
-    }
-    assert.strictEqual(noLoaderError && noLoaderError.code, 'NO_LOADER');
+    const vanillaTarget = { id: 'vanilla', gameDir, mcVersion: '1.20.1', loaders: [] };
+    const vanillaResult = await mods.install({
+      target: vanillaTarget,
+      projectId: 'clientmod',
+      gameVersion: '1.20.1',
+    });
+    assert.strictEqual(vanillaResult.ok, true);
+    assert.strictEqual(vanillaResult.loader, '');
+    assert.strictEqual(vanillaResult.installed[0].filename, 'clientmod-fabric.jar');
+    assert.ok(fs.existsSync(path.join(modsDir, 'clientmod-fabric.jar')));
+    assert.strictEqual(fs.existsSync(path.join(modsDir, 'clientmod-paper.jar')), false);
   } finally {
     net.fetchJson = originalFetchJson;
+    net.downloadFile = originalDownloadFile;
   }
 
   };

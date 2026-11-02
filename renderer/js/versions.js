@@ -39,6 +39,13 @@
     quilt: 'Fabric 的兼容分支，支持 Quilt 专属模组和大部分 Fabric 模组。',
   };
 
+  const LOADER_MANUAL = {
+    fabric: 'https://fabricmc.net/use/installer/',
+    forge: 'https://files.minecraftforge.net/net/minecraftforge/forge/',
+    neoforge: 'https://neoforged.net/',
+    quilt: 'https://quiltmc.org/install/',
+  };
+
   function iconInfo(version) {
     const key = version.loaders.length ? version.loaders[0].key : 'vanilla';
     return {
@@ -156,6 +163,7 @@
             <option>正在获取版本…</option>
           </select>
           <p class="muted-sm" id="mp-loader-hint" style="margin-top:9px">正在自动匹配版本…</p>
+          <p class="muted-sm">自动下载失败时，可以 <button type="button" class="mod-inline-link" id="mp-loader-manual">打开官方下载页</button>，手动运行安装器；装好后回到本页刷新版本列表。</p>
         </div>`,
       actions: [
         { label: '取消', value: null },
@@ -183,6 +191,7 @@
         const hint = box.querySelector('#mp-loader-hint');
         const state = box.querySelector('#mp-loader-state');
         const current = box.querySelector('#mp-loader-current');
+        const manual = box.querySelector('#mp-loader-manual');
         const installButton = box.querySelector('.modal-actions .btn.primary');
 
         const setState = (text, kind) => {
@@ -282,6 +291,12 @@
           });
         });
         if (select) select.addEventListener('change', updateSelection);
+        if (manual) {
+          manual.addEventListener('click', () => {
+            const url = LOADER_MANUAL[selectedType];
+            if (url) MP.openExternal(url);
+          });
+        }
         load(selectedType);
       },
     });

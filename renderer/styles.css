@@ -1657,6 +1657,31 @@ select option {
   color: #e8bf76;
 }
 
+.mod-hint.actionable {
+  padding: 10px 12px;
+  border: 1px solid rgba(232, 191, 118, 0.28);
+  border-radius: 9px;
+  background: rgba(232, 191, 118, 0.07);
+  font-size: 12.5px;
+}
+
+.mod-inline-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.mod-inline-link:hover,
+.mod-inline-link:focus-visible {
+  color: var(--accent-strong, var(--accent));
+  outline: none;
+}
+
 .mod-list {
   padding-bottom: 4px;
 }

@@ -1353,9 +1353,9 @@ function registerIpc() {
 
   ipcMain.handle('loader:versions', async (event, payload = {}) => {
     if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    const mcVersion = String(payload.mcVersion || '').trim();
+    const type = ['fabric', 'forge', 'neoforge', 'quilt'].includes(payload.type) ? payload.type : 'fabric';
     try {
-      const mcVersion = String(payload.mcVersion || '').trim();
-      const type = ['fabric', 'forge', 'neoforge', 'quilt'].includes(payload.type) ? payload.type : 'fabric';
       if (!mcVersion) return { ok: false, error: '缺少 Minecraft 版本号' };
       const loadersByType = {
         fabric: loaders.fabricVersions,
@@ -1364,8 +1364,10 @@ function registerIpc() {
         quilt: loaders.quiltVersions,
       };
       const list = await loadersByType[type](mcVersion);
+      logger.info('加载器版本查询:', `${type} ${mcVersion}`, '可选', list.length);
       return { ok: true, type, mcVersion, versions: list };
     } catch (err) {
+      logger.warn('加载器版本查询失败:', `${type} ${mcVersion}`, err.message);
       return { ok: false, error: err.message };
     }
   });

@@ -85,6 +85,24 @@
     return key ? LOADER_LABELS[key] : '原版';
   }
 
+  // 同一个 Minecraft 版本可能已经装过 Forge/Fabric 实例，只是当前选中的
+  // 是原版。优先让用户切过去，而不是再下载一个加载器。
+  function loaderAlternatives(target) {
+    if (!target) return [];
+    return (MP.state.versions || []).filter((version) => (
+      version.id !== target.id
+      && String(version.mcVersion || '') === String(target.mcVersion || '')
+      && loaderKey(version)
+    )).sort((a, b) => {
+      // 优先展示干净、模组少的实例，避免一上来就把几百个模组的整合包
+      // 当成推荐目标；再按最近启动时间排序。
+      const ac = Number(a.mods && a.mods.count) || 0;
+      const bc = Number(b.mods && b.mods.count) || 0;
+      if (ac !== bc) return ac - bc;
+      return (Number(b.lastPlayed) || 0) - (Number(a.lastPlayed) || 0);
+    });
+  }
+
   function currentQuery() {
     const input = $('#mod-search');
     return input ? input.value.trim() : '';
@@ -218,7 +236,7 @@
     const hint = $('#mod-hint');
     if (!hint) return;
     const target = targetVersion();
-    hint.classList.remove('warn');
+    hint.classList.remove('warn', 'actionable');
     if (!target) {
       hint.textContent = '还没有已安装的版本，请先去「下载」安装一个游戏版本。';
       return;
@@ -239,8 +257,14 @@
       return;
     }
     if (!loader) {
-      hint.classList.add('warn');
-      hint.textContent = `${target.id} 没有安装模组加载器；模组可以下载，但游戏不会加载它们。建议先安装 Fabric、Forge 或 NeoForge。`;
+      hint.classList.add('warn', 'actionable');
+      const alternatives = loaderAlternatives(target).slice(0, 2);
+      const switches = alternatives.map((version) => (
+        `<button type="button" class="mod-inline-link" data-mod-use-target="${esc(version.id)}">${esc(version.id)}（${esc(loaderText(version))}）</button>`
+      )).join('、');
+      hint.innerHTML = alternatives.length
+        ? `${esc(target.id)} 是原版，不能加载模组。你已安装 ${switches}，切换过去即可安装。也可以 <button type="button" class="mod-inline-link" data-mod-install-loader="${esc(target.id)}">为 ${esc(target.id)} 安装加载器</button>。`
+        : `${esc(target.id)} 没有安装模组加载器。可以先把模组下载到 mods 目录，但游戏不会加载；建议先 <button type="button" class="mod-inline-link" data-mod-install-loader="${esc(target.id)}">安装 Fabric / Forge / NeoForge</button>。`;
       return;
     }
     const cat = categoryLabel();
@@ -327,11 +351,9 @@
     const blocked = hit.installable === false;
     const action = serverOnly
       ? '<button class="btn small" disabled title="这是仅服务端/插件版本，客户端无法加载">仅服务端</button>'
-      : noLoader
-        ? '<button class="btn small" disabled title="请先安装 Forge/Fabric/NeoForge/Quilt">需加载器</button>'
-        : blocked
-          ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
-          : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}">${installed ? '重新安装' : '安装'}</button>`;
+      : blocked
+        ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
+        : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}"${noLoader ? ' title="当前实例没有加载器，下载后暂时不会生效"' : ''}>${noLoader ? '下载' : (installed ? '重新安装' : '安装')}</button>`;
 
     return `<div class="card mod-row">
       ${iconHTML(hit)}
@@ -483,11 +505,6 @@
       MP.toast('请先选择目标版本', 'warn');
       return;
     }
-    if (!loaderKey(target)) {
-      MP.toast('当前实例没有安装 Forge/Fabric/NeoForge/Quilt，模组不会生效。请先在「版本」页为这个实例安装加载器。', 'warn', 8000);
-      return;
-    }
-
     let result;
     try {
       result = await MP.api.invoke('mods:versions', {
@@ -684,10 +701,14 @@
       return;
     }
     if (!loaderKey(target)) {
+      const alt = loaderAlternatives(target)[0];
+      const suggestion = alt
+        ? `你已经安装了 ${alt.id}（${loaderText(alt)}），建议取消后切换到它再安装。`
+        : '建议先为这个实例安装 Fabric、Forge 或 NeoForge。';
       const go = await MP.confirm({
         title: '目标版本没有模组加载器',
-        text: `${target.id} 目前是原版版本，安装模组后游戏不会加载它们。建议先在「版本」页安装 Fabric、Forge 或 NeoForge。仍然要下载到 mods 目录吗？`,
-        confirmLabel: '仍然安装',
+        text: `${target.id} 目前是原版版本，文件可以下载，但游戏不会加载。${suggestion}仍然要下载到它的 mods 目录吗？`,
+        confirmLabel: '仍然下载',
       });
       if (!go) return;
     }
@@ -1372,6 +1393,27 @@
     });
   }
 
+  function onHintClick(event) {
+    const useTarget = event.target.closest('[data-mod-use-target]');
+    if (useTarget) {
+      const select = $('#mod-target');
+      if (select && useTarget.dataset.modUseTarget) {
+        select.value = useTarget.dataset.modUseTarget;
+        onTargetChanged();
+      }
+      return;
+    }
+    const install = event.target.closest('[data-mod-install-loader]');
+    if (install) {
+      const version = (MP.state.versions || []).find((item) => item.id === install.dataset.modInstallLoader);
+      if (version && MP.views.versions && typeof MP.views.versions.openLoader === 'function') {
+        MP.views.versions.openLoader(version);
+      } else {
+        MP.toast('请到「版本」页选择该实例并安装加载器', 'warn', 5000);
+      }
+    }
+  }
+
   function onListClick(event) {
     const open = event.target.closest('[data-mod-open]');
     if (open) {
@@ -1495,6 +1537,7 @@
     });
     MP.on('#btn-mod-more', 'click', () => doSearch(false));
     MP.on('#mod-list', 'click', onListClick);
+    MP.on('#mod-hint', 'click', onHintClick);
     MP.on('#btn-mod-copy-diag', 'click', copyDiagnostic);
     MP.on('#btn-mod-view-log', 'click', () => MP.showLogs());
     MP.on('#btn-cancel-mod', 'click', cancelInstall);

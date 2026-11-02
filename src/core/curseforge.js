@@ -103,6 +103,14 @@ function loaderForVersion(version) {
   return found ? found.key : '';
 }
 
+function isClientFile(version) {
+  const tags = (version && Array.isArray(version.gameVersions) ? version.gameVersions : [])
+    .map((item) => String(item || '').toLowerCase());
+  if (tags.includes('client')) return true;
+  if (tags.includes('server')) return false;
+  return true;
+}
+
 function validateModId(value) {
   const id = String(value || '').trim();
   if (!/^\d{1,12}$/.test(id)) {
@@ -314,6 +322,7 @@ async function getAllVersions(options = {}) {
   const projectId = validateModId(options.projectId);
   const gameVersion = cleanText(options.gameVersion, 40).trim();
   const loader = normalizeLoader(options.loader);
+  const clientOnly = options.clientOnly === true || !loader;
 
   const params = new URLSearchParams({
     index: '0',
@@ -322,7 +331,7 @@ async function getAllVersions(options = {}) {
   if (gameVersion) params.set('gameVersion', gameVersion);
   if (loader && LOADER_TYPES[loader]) params.set('modLoaderType', String(LOADER_TYPES[loader]));
 
-  const cacheKey = `versions:${projectId}:${gameVersion}:${loader}`;
+  const cacheKey = `versions:${projectId}:${gameVersion}:${loader}:${clientOnly ? 'client' : 'any'}`;
   const cached = cacheGet(cacheKey);
   if (cached) return cached;
 
@@ -330,6 +339,7 @@ async function getAllVersions(options = {}) {
   const versions = (Array.isArray(data && data.data) ? data.data : [])
     .map((file) => mapFile(file, projectId))
     .filter(Boolean)
+    .filter((version) => !clientOnly || isClientFile(version))
     .sort((a, b) => String(b.datePublished).localeCompare(String(a.datePublished)));
 
   const result = { source: 'CurseForge', projectId, gameVersion, loader, versions };
@@ -434,6 +444,7 @@ async function resolvePlan(initial, options) {
           projectId: dep.projectId,
           gameVersion,
           loader,
+          clientOnly: !loader,
           apiKey: options.apiKey,
           signal,
         });
@@ -504,6 +515,7 @@ async function preview(options = {}) {
       projectId,
       gameVersion,
       loader,
+      clientOnly: !loader,
       apiKey: options.apiKey,
       signal,
     });
@@ -512,6 +524,11 @@ async function preview(options = {}) {
   if (!initial) {
     const error = new Error('该模组没有适用于当前版本/加载器的文件');
     error.code = 'NO_VERSION';
+    throw error;
+  }
+  if (!loader && !isClientFile(initial)) {
+    const error = new Error('该模组只有服务端文件，不能安装到原版客户端的 mods 目录');
+    error.code = 'NO_CLIENT_VERSION';
     throw error;
   }
 
@@ -619,12 +636,6 @@ async function install(options = {}) {
   const signal = options.signal || null;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
 
-  if (!loader) {
-    const error = new Error('当前实例是原版，没有 Forge/Fabric/NeoForge/Quilt 加载器；模组不会生效。请先在「版本」页安装加载器，再回来安装模组。');
-    error.code = 'NO_LOADER';
-    throw error;
-  }
-
   let initial = null;
   if (options.versionId) {
     initial = await getFile({
@@ -638,6 +649,7 @@ async function install(options = {}) {
       projectId,
       gameVersion,
       loader,
+      clientOnly: !loader,
       apiKey: key,
       signal,
     });
@@ -646,6 +658,11 @@ async function install(options = {}) {
   if (!initial) {
     const error = new Error('该模组没有适用于当前版本/加载器的文件');
     error.code = 'NO_VERSION';
+    throw error;
+  }
+  if (!loader && !isClientFile(initial)) {
+    const error = new Error('该模组只有服务端文件，不能安装到原版客户端的 mods 目录');
+    error.code = 'NO_CLIENT_VERSION';
     throw error;
   }
 

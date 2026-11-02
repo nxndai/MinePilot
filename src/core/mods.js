@@ -222,7 +222,8 @@ async function getVersions(options = {}) {
   const projectId = validateId(options.projectId, '项目');
   const gameVersion = cleanText(options.gameVersion, 40).trim();
   const loader = normalizeLoader(options.loader);
-  const clientOnly = options.clientOnly === true;
+  // 没有加载器时也必须只返回客户端可用的文件，避免把 Paper 插件下载到 mods。
+  const clientOnly = options.clientOnly === true || !loader;
   const key = `versions:${projectId}:${gameVersion}:${loader}:${clientOnly ? 'client' : 'any'}`;
   const cached = cacheGet(key);
   if (cached) return cached;
@@ -327,7 +328,12 @@ async function resolvePlan(initial, options) {
         if (dep.versionId) {
           dependencyVersion = await getVersion(dep.versionId);
         } else if (dep.projectId) {
-          const result = await getVersions({ projectId: dep.projectId, gameVersion, loader });
+          const result = await getVersions({
+            projectId: dep.projectId,
+            gameVersion,
+            loader,
+            clientOnly: !loader,
+          });
           dependencyVersion = result.versions[0] || null;
         }
         if (!dependencyVersion) {
@@ -469,12 +475,8 @@ async function install(options = {}) {
   const signal = options.signal || null;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
 
-  if (!loader) {
-    const error = new Error('当前实例是原版，没有 Forge/Fabric/NeoForge/Quilt 加载器；模组不会生效。请先在「版本」页安装加载器，再回来安装模组。');
-    error.code = 'NO_LOADER';
-    throw error;
-  }
-
+  // 没有加载器也允许先下载客户端文件：模组页会明确提示它暂时不会生效，
+  // 但不要用“先装加载器”把下载入口彻底锁死。
   let initial = null;
   if (options.versionId) {
     initial = await getVersion(options.versionId);
@@ -485,6 +487,11 @@ async function install(options = {}) {
   if (!initial) {
     const error = new Error('该模组没有适用于当前版本/加载器的文件');
     error.code = 'NO_VERSION';
+    throw error;
+  }
+  if (!loader && !isClientVersion(initial)) {
+    const error = new Error('该模组只有服务端文件，不能安装到原版客户端的 mods 目录');
+    error.code = 'NO_CLIENT_VERSION';
     throw error;
   }
 
