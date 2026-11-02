@@ -54,6 +54,31 @@ try {
   assert.ok(!sanitized.includes('xyz'));
   assert.ok(diagnostics.sanitizeShareText('connect 203.0.113.42:25565').includes('<IP>'));
 
+  // 正常退出时，命令行里的 lwjgl-glfw-...-natives 路径不能被误判成
+  // “本机运行库加载失败”；退出码 0 且没有崩溃报告就是正常退出。
+  const cleanGame = path.join(root, 'clean-game');
+  fs.mkdirSync(path.join(cleanGame, 'logs'), { recursive: true });
+  const cleanLog = path.join(cleanGame, 'logs', 'latest.log');
+  fs.writeFileSync(cleanLog, [
+    'C:\\Users\\these\\AppData\\Roaming\\.minecraft\\libraries\\org\\lwjgl\\lwjgl-glfw\\3.3.1\\lwjgl-glfw-3.3.1-natives-windows.jar',
+    '[Render thread/ERROR] [net.minecraft.class_310] Failed to verify authentication',
+    '[Render thread/INFO] [net.minecraft.class_310] Stopping!',
+  ].join('\n'));
+  const clean = diagnostics.analyze({
+    gameDir: cleanGame,
+    logPath: cleanLog,
+    code: 0,
+    duration: 263000,
+    versionId: 'fabric-loader-1.20.1',
+    startedAt: Date.now() - 264000,
+  });
+  assert.strictEqual(clean.crashed, false);
+  assert.strictEqual(clean.title, '游戏正常退出');
+  assert.ok(!clean.causes.some((cause) => cause.id === 'natives'));
+  assert.ok(diagnostics.latest());
+  diagnostics.clearLatest();
+  assert.strictEqual(diagnostics.latest(), null);
+
   console.log('diagnostics tests passed');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

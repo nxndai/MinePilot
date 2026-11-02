@@ -16,7 +16,7 @@ const integrity = require('./integrity');
 const platform = require('./platform');
 
 const LAUNCHER_NAME = 'MinePilot';
-const LAUNCHER_VERSION = '1.8.0';
+const LAUNCHER_VERSION = require('../../package.json').version;
 
 function effectiveMemoryMb(value, recommended, javaBits) {
   let memory;

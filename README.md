@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.11.3（2026-11-02 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.4（2026-11-02 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -13,7 +13,7 @@
 
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.11.3.exe`。
+- 下载 `MinePilot_Setup_1.11.4.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
@@ -54,7 +54,7 @@
 - 内存清理：设置页显示当前系统内存占用，可手动清理其他程序暂时不用的工作集，把物理内存腾给游戏。普通清理默认跳过系统关键进程、启动器自身和由启动器启动的游戏进程；深度清理会通过 UAC 请求管理员权限，调用 Windows 系统级工作集、待机列表和文件缓存整理，释放量更大，可能出现短暂卡顿。两种模式都不结束进程、不删除数据；检测到游戏正在运行时不会执行会波及游戏的全量系统整理。
 - 版本隔离：开启后每个版本使用独立的 `mods`、`saves`、`options.txt` 等数据目录，避免不同版本/模组互相污染；关闭时沿用全局游戏目录，但检测到 `versions\<版本号>\mods`、`saves`、`options.txt` 等版本独立数据时会自动隔离该实例（PCL 整合包无需手动开启），已有全局模组不会自动迁移。若启动时提示 `EPERM`/“无法写入游戏数据目录”，请确认是从 Windows 桌面快捷方式直接启动（不要在聊天窗口、预览页或沙箱中启动），或把游戏目录换到普通可写文件夹，并将启动器与 Java 加入安全软件信任列表。也可以先双击 `repair-game-dirs.cmd`，为所有版本补齐 `logs`、`saves`、`crash-reports`、`downloads` 等目录。如果原目录存在但仍无法写入文件，启动器会自动改用程序目录下的 `data\game\<版本号>` 便携数据目录，并把原版本的模组、存档和配置复制过去。
 - 存档管理：在「存档」页按实例列出 `saves/` 里的世界，显示世界名、最后游玩时间、大小、文件数和从 `level.dat` 读取的游戏版本；支持创建 ZIP 备份、恢复备份、导出和导入世界压缩包，删除存档时默认先自动备份到同实例的 `backups/`。导入/恢复会先解压到临时目录并校验存在 `level.dat`，确认后再合并覆盖并回滚失败操作。未隔离的多个实例共用同一个 `saves/` 时，界面会提示操作会影响所有共享实例。云同步（WebDAV / S3）暂未内置，备份文件仍保存在本机。
-- 角色工坊：导入、预览、切换和删除本地皮肤与披风。支持 64×64、64×32、128×128 PNG 皮肤和 64×32、64×64、128×64 披风，自动校验 PNG 文件头与尺寸；经典/纤细模型可切换，预览会同时显示披风。皮肤库独立于账户系统，离线账户也能使用，本地皮肤头像会同步到侧栏和首页。图片只保存在本机，不上传。
+- 角色工坊：导入、预览、切换和删除本地皮肤与披风。支持 64×64、64×32、128×128 PNG 皮肤和 64×32、64×64、128×64 披风，自动校验 PNG 文件头与尺寸；经典/纤细模型可切换，预览会同时显示披风。皮肤库独立于账户系统，离线账户也能保存并预览，本地皮肤头像会同步到侧栏和首页。图片默认只保存在本机；登录 Microsoft 正版账户后，可以把当前皮肤上传到 Mojang 档案，让原版游戏直接显示。离线账户没有可写入的 Mojang 档案，游戏内仍显示 Steve/Alex，需要配合支持本地皮肤的模组。
 - 外观：深色/浅色主题、默认渐变/纯色/本机图片背景、90%–125% 界面缩放和动画开关。背景图片支持 PNG/JPG/WebP/GIF，限制 12 MB 并校验文件签名；缩放使用 Electron 原生缩放，高 DPI 屏幕下不会裁切内容，并遵循系统“减少动态效果”设置。
 - 界面语言：支持简体中文与 English 切换，设置在「设置 → 语言」中，切换后界面自动刷新；启动游戏时会同步修改该实例 `options.txt` 的 `lang` 值（中文 `zh_cn` / 英文 `en_us`），让游戏语言默认跟随启动器，同时保留分辨率、音量等其他游戏设置。
 - 运行监控：游戏启动后实时显示 CPU 使用率、内存占用/分配、累计 CPU 时间、线程数、PID、运行时长和最近 120 行日志，并绘制 CPU 走势。可以打开完整日志、复制日志或一键结束整个游戏进程树。
@@ -63,7 +63,7 @@
 - 一键删除启动器：设置页底部提供「删除启动器」，确认后强制关闭启动器并删除程序文件、桌面/开始菜单快捷方式和卸载登记。设置、账户、缓存、皮肤以及 Minecraft 游戏存档都会保留；删除后需要重新下载安装包才能再次启动。
 - 启动日志抽屉、安装进度与速度显示、取消安装、删除版本、打开游戏/Mods/日志目录。
 
-> 本地皮肤只保存在 MinePilot 数据目录，原版离线客户端默认不会读取第三方皮肤。若要在游戏内显示，需要配合支持本地皮肤的模组或资源包；启动器内预览和头像不受影响。PCL 是源码公开但采用自定义《PCL 分发有限许可》的项目，不是 OSI 开源项目；MinePilot 未复制其代码或素材。
+> 本地皮肤只保存在 MinePilot 数据目录。原版客户端不会读取本地 PNG：离线账户游戏内固定显示 Steve/Alex；登录 Microsoft 正版账户后可在角色工坊点「应用到游戏」上传皮肤；离线账户若要在游戏内显示，需要配合支持本地皮肤的模组（如 CustomSkinLoader）。启动器内预览和头像不受影响。PCL 是源码公开但采用自定义《PCL 分发有限许可》的项目，不是 OSI 开源项目；MinePilot 未复制其代码或素材。
 
 <a id="faq"></a>
 <a name="faq"></a>
@@ -78,7 +78,7 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 
 - 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
   ```powershell
-  Get-FileHash .\MinePilot_Setup_1.11.3.exe -Algorithm SHA256
+  Get-FileHash .\MinePilot_Setup_1.11.4.exe -Algorithm SHA256
   ```
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
@@ -134,6 +134,15 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 5. 安全漏洞不要公开提交，请按 [SECURITY.md](SECURITY.md) 私下联系。
 
 ## 更新记录
+
+### 1.11.4
+
+- 修复正常退出被误判为崩溃：启动命令里的 `lwjgl-glfw-...-natives-windows.jar` 曾被当成“本机运行库加载失败”，即使退出码为 0 也会弹错误；现在退出码 0 且没有崩溃报告时按正常退出处理，并清理上一次的错误卡片。
+- 正常退出后会显示“游戏已退出，本次运行 X 秒”，不再打开崩溃日志或生成新的诊断记录。
+- 角色工坊新增「应用到游戏」：登录 Microsoft 正版账户后，可以把当前本地皮肤上传到 Mojang 档案，原版游戏内即可显示。离线账户没有可写入的皮肤档案，界面和说明会明确提示需要正版账户或本地皮肤模组。
+- 皮肤页文案区分“启动器预览”和“游戏内显示”，避免把本地 PNG 误认为会自动注入游戏。
+- 启动日志头部的版本号改为读取实际应用版本，不再固定显示 1.8.0。
+- 补充正常退出、误匹配本机库路径和皮肤上传的回归测试。
 
 ### 1.11.3
 
@@ -320,13 +329,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.11.3",
+  "version": "1.11.4",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.11.3.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.11.3.exe",
+      "name": "MinePilot_Setup_1.11.4.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.4.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -496,7 +505,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.3.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.4.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -504,7 +513,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.3.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.4.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
@@ -617,7 +626,7 @@ runtime/electron/        内置 Electron 运行时
 - Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 管理」中安装（自动安装需要先开启“在线下载”）。
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
 - 不支持 1.7 以前需要特殊资源目录结构的极老版本（`legacy` 资源会尽量整理，但不保证）。
-- 本地皮肤/披风只在启动器内预览、管理和生成本地头像，不会写回 Mojang 账户，也不会自动注入游戏。离线客户端默认不读取第三方皮肤；若要在游戏内显示，需要支持本地皮肤的模组或资源包。
+- 本地皮肤/披风默认只在启动器内预览、管理和生成本地头像，不会自动注入离线游戏。登录 Microsoft 正版账户后可以在角色工坊主动上传皮肤到 Mojang 档案；离线账户不会写回 Mojang，原版游戏内固定显示 Steve/Alex，需要支持本地皮肤的模组。
 - 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；CurseForge 清单 ZIP 仅识别，不会自动下载。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。

@@ -296,7 +296,7 @@ function normalizePatterns() {
       severity: 'error',
       title: '本机运行库加载失败',
       confidence: 'high',
-      test: /Failed to locate library|UnsatisfiedLinkError|java\.lang\.UnsatisfiedLinkError|GLFW.*natives|LWJGL.*(?:failed|error)/i,
+      test: /Failed to locate library|UnsatisfiedLinkError|java\.lang\.UnsatisfiedLinkError|GLFW(?: error| failed)|Failed to initialize GLFW|Could not initialize GLFW|org\.lwjgl\.LWJGLException/i,
       detail: 'LWJGL/GLFW 的本机库没有正确解压或与当前操作系统架构不匹配。',
       suggestions: [
         '重新安装该版本，让启动器重新校验并下载对应平台的本机库。',
@@ -424,7 +424,17 @@ function analyze(info = {}) {
   }
 
   const hasCrashReport = files.crashReports.length > 0;
-  const crashed = !killed && (abnormalCode || Boolean(signal) || causes.length > 0 || (hasCrashReport && codeNumber === 0));
+  // 退出代码 0 且没有崩溃报告时，日志里的普通 ERROR/WARN（例如正版验证
+  // 401、模组加载提示）不能把一次正常退出判成崩溃；只有异常退出码、
+  // 信号、崩溃报告，或无法取得退出码时的明确错误才进入崩溃流程。
+  const unknownExit = codeNumber == null;
+  const fatalCause = causes.some((cause) => cause.severity === 'error' || cause.severity === 'critical');
+  const crashed = !killed && (
+    abnormalCode
+    || Boolean(signal)
+    || hasCrashReport
+    || (unknownExit && fatalCause)
+  );
   let primary = causes[0] || null;
   if (!primary && hasCrashReport) {
     primary = {
@@ -637,6 +647,15 @@ function latest() {
   }
 }
 
+/** 正常退出时清掉上一次的崩溃卡片，历史记录仍然保留。 */
+function clearLatest() {
+  try {
+    fs.rmSync(path.join(ensureDir(), 'latest.json'), { force: true });
+  } catch (err) {
+    logger.warn('清理最近诊断状态失败:', err.message);
+  }
+}
+
 function history() {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(ensureDir(), 'history.json'), 'utf8'));
@@ -815,6 +834,7 @@ function exportReport(record, outputPath) {
 module.exports = {
   analyze,
   save,
+  clearLatest,
   latest,
   history,
   get,

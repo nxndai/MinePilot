@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const fs = require('fs');
 const path = require('path');
@@ -201,6 +201,20 @@ function setActive(kind, id, model) {
   return list();
 }
 
+/** 读取当前激活皮肤，供上传到 Microsoft 档案使用。 */
+function activeSkinPayload() {
+  const data = readIndex();
+  const item = data.items.find((candidate) => candidate.kind === 'skin' && candidate.id === data.activeSkin);
+  if (!item) throw new Error('请先选择一套本地皮肤');
+  const file = fileFor(item.file);
+  if (!fs.existsSync(file)) throw new Error('本地皮肤文件不存在，请重新导入');
+  return {
+    buffer: fs.readFileSync(file),
+    model: item.model,
+    name: item.name,
+  };
+}
+
 function clearActive(kind) {
   const type = kind === 'cape' ? 'cape' : 'skin';
   const data = readIndex();
@@ -243,6 +257,7 @@ module.exports = {
   list,
   importData,
   setActive,
+  activeSkinPayload,
   clearActive,
   remove,
   rename,

@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 (function () {
   const { $, esc } = MP;
@@ -323,13 +323,17 @@
     if ($('#btn-skin-clear')) $('#btn-skin-clear').classList.toggle('hidden', !skin);
 
     const account = lib && lib.account;
+    const microsoft = Boolean(account && account.uuid);
     const name = MP.accountName ? MP.accountName() : 'Steve';
     if ($('#skin-account-name')) $('#skin-account-name').textContent = name;
     if ($('#skin-account-sub')) $('#skin-account-sub').textContent = MP.accountModeText ? MP.accountModeText() : '离线账户 · 仅本地';
     if ($('#skin-account-text')) {
-      $('#skin-account-text').textContent = account && account.skin ? 'Microsoft 账户 · 正版皮肤可用' : '离线账户 · 本地形象';
+      $('#skin-account-text').textContent = microsoft
+        ? (account.skin ? 'Microsoft 账户 · 正版皮肤可用' : 'Microsoft 账户 · 尚未上传皮肤')
+        : '离线账户 · 仅本地预览';
     }
-    if ($('#skin-account-dot')) $('#skin-account-dot').className = `status-dot${account && account.skin ? '' : ' warn'}`;
+    if ($('#skin-account-dot')) $('#skin-account-dot').className = `status-dot${microsoft && account.skin ? '' : ' warn'}`;
+    if ($('#btn-skin-apply')) $('#btn-skin-apply').classList.toggle('hidden', !(microsoft && skin));
     updateLocalHead(skin);
     if ($('#skin-account-avatar') && MP.setAvatar) MP.setAvatar($('#skin-account-avatar'), name);
 
@@ -404,6 +408,37 @@
       MP.toast(`操作失败：${err.message}`, 'err');
     } finally {
       state.busy = false;
+    }
+  }
+
+  async function applySkin() {
+    const skin = activeSkin();
+    if (!skin || state.busy) return;
+    state.busy = true;
+    const button = $('#btn-skin-apply');
+    if (button) button.disabled = true;
+    try {
+      const result = await MP.api.invoke('skin:apply');
+      if (!result || result.ok === false) {
+        const error = new Error((result && result.error) || '上传皮肤失败');
+        error.code = result && result.code;
+        throw error;
+      }
+      await load(true);
+      MP.toast('皮肤已上传到 Microsoft 账户；重新进入游戏后生效', 'ok', 7000);
+    } catch (err) {
+      if (err.code === 'OFFLINE_SKIN') {
+        MP.modal({
+          title: '离线账户不能用原版皮肤',
+          text: err.message,
+          confirmLabel: '知道了',
+        });
+      } else {
+        MP.toast(`上传失败：${err.message}`, 'err', 7000);
+      }
+    } finally {
+      state.busy = false;
+      if (button) button.disabled = false;
     }
   }
 
@@ -502,6 +537,7 @@
       MP.on(id, 'click', () => $('#skin-file-input').click());
     }
     MP.on('#btn-cape-import', 'click', () => $('#cape-file-input').click());
+    MP.on('#btn-skin-apply', 'click', applySkin);
     MP.on('#btn-skin-clear', 'click', () => clearActive('skin'));
     MP.on('#btn-cape-clear', 'click', () => clearActive('cape'));
     document.querySelectorAll('[data-skin-model]').forEach((button) => {

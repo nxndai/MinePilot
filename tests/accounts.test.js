@@ -78,6 +78,33 @@ async function run() {
   const secondRaw = fs.readFileSync(path.join(root, 'accounts.json'), 'utf8');
   assert.ok(!secondRaw.includes('second-access'));
 
+  const originalFetch = global.fetch;
+  let uploadRequest = null;
+  global.fetch = async (url, options) => {
+    uploadRequest = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        skins: [{ id: 'skin-1', state: 'ACTIVE', url: 'https://textures.minecraft.net/texture/abc' }],
+        capes: [],
+      }),
+    };
+  };
+  try {
+    const upload = await accounts.uploadSkin('upload-token', Buffer.from('png'), 'slim');
+    assert.strictEqual(upload.skin, 'https://textures.minecraft.net/texture/abc');
+    assert.strictEqual(uploadRequest.url, 'https://api.minecraftservices.com/minecraft/profile/skins');
+    assert.strictEqual(uploadRequest.options.method, 'POST');
+    assert.strictEqual(uploadRequest.options.headers.Authorization, 'Bearer upload-token');
+    assert.strictEqual(uploadRequest.options.body.get('variant'), 'slim');
+    assert.ok(uploadRequest.options.body.get('file'));
+    const updated = accounts.updateActiveSkin(upload);
+    assert.strictEqual(updated.skin, upload.skin);
+  } finally {
+    global.fetch = originalFetch;
+  }
+
   console.log('accounts tests passed');
 }
 

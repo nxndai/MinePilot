@@ -476,6 +476,65 @@ async function refreshActive() {
   return { ok: true, account: summaryValue };
 }
 
+/**
+ * 把本地皮肤上传到当前 Microsoft 账户的 Mojang 档案。
+ * 只有正版账户能在原版客户端里显示自定义皮肤；离线账户没有可写入的
+ * Mojang 档案，调用方应在此之前拦截并说明原因。
+ */
+async function uploadSkin(accessToken, buffer, model) {
+  if (!accessToken) throw new Error('缺少 Microsoft 访问令牌，请重新登录');
+  if (typeof FormData !== 'function' || typeof Blob !== 'function') {
+    throw new Error('当前运行环境不支持上传皮肤');
+  }
+  const form = new FormData();
+  form.append('variant', model === 'slim' ? 'slim' : 'classic');
+  form.append('file', new Blob([buffer], { type: 'image/png' }), 'skin.png');
+  const response = await fetch('https://api.minecraftservices.com/minecraft/profile/skins', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'User-Agent': 'MinePilot',
+    },
+    body: form,
+  });
+  let data = {};
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : {};
+  } catch (err) {
+    data = {};
+  }
+  if (!response.ok) {
+    const error = new Error(
+      data.errorMessage
+      || data.error
+      || (response.status === 401
+        ? 'Microsoft 登录已失效，请重新登录后再上传皮肤'
+        : `皮肤上传失败（HTTP ${response.status}）`)
+    );
+    error.code = response.status === 401 ? 'AUTH_EXPIRED' : 'SKIN_UPLOAD_FAILED';
+    throw error;
+  }
+  const skins = Array.isArray(data.skins) ? data.skins : [];
+  const capes = Array.isArray(data.capes) ? data.capes : [];
+  const activeSkin = skins.find((item) => item && item.state === 'ACTIVE') || skins[0] || null;
+  return {
+    skin: activeSkin && activeSkin.url ? String(activeSkin.url) : '',
+    capes,
+  };
+}
+
+/** 把上传结果写回当前 Microsoft 账户，供界面显示“正版皮肤可用”。 */
+function updateActiveSkin(payload = {}) {
+  const store = loadStore();
+  const account = activeMicrosoft(store);
+  if (!account) throw new Error('当前没有可更新的 Microsoft 账户');
+  if (typeof payload.skin === 'string') account.skin = payload.skin.slice(0, 1000);
+  if (Array.isArray(payload.capes)) account.capes = payload.capes;
+  saveStore(store);
+  return summary();
+}
+
 function displayName(settings) {
   if (settings && settings.authMode === 'microsoft') {
     const current = summary();
@@ -499,6 +558,8 @@ module.exports = {
   clearMicrosoft,
   refreshActive,
   profileFor,
+  uploadSkin,
+  updateActiveSkin,
   displayName,
   accountFile,
   setSecureStore,

@@ -184,6 +184,7 @@ function analyzeGameExit(info) {
       appVersion: app.getVersion(),
     }));
     if (record.crashed) diagnostics.save(record);
+    else diagnostics.clearLatest();
     return record;
   } catch (err) {
     logger.warn('生成崩溃诊断失败:', err.message);
@@ -1543,6 +1544,29 @@ function registerIpc() {
       return skinmanager.setActive(payload.kind, payload.id, payload.model);
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('skin:apply', async () => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    try {
+      const s = settings.get();
+      if (s.authMode !== 'microsoft') {
+        return {
+          ok: false,
+          code: 'OFFLINE_SKIN',
+          error: '离线账户没有 Mojang 皮肤档案，游戏内不会显示本地皮肤。请登录 Microsoft 正版账户，或安装支持本地皮肤的模组。',
+        };
+      }
+      const active = skinmanager.activeSkinPayload();
+      const profile = await accounts.profileFor(s);
+      const uploaded = await accounts.uploadSkin(profile.accessToken, active.buffer, active.model);
+      const account = accounts.updateActiveSkin(uploaded);
+      logger.info('本地皮肤已上传到 Microsoft 账户:', profile.name, active.name);
+      return { ok: true, account };
+    } catch (err) {
+      logger.warn('上传本地皮肤失败:', err.message);
+      return { ok: false, code: err.code || 'SKIN_APPLY_FAILED', error: err.message };
     }
   });
 
