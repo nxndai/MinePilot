@@ -846,6 +846,36 @@ const handlers = {
     }
   },
 
+  'mods:dependencies': async (payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    const request = payload || {};
+    const projectId = String(request.projectId || '').trim();
+    const targetVersionId = String(request.targetVersionId || '').trim();
+    if (!projectId) return { ok: false, code: 'BAD_PROJECT', error: '缺少模组项目 ID' };
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请选择要安装到的版本' };
+    try {
+      const s = settings.get();
+      const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+      const target = list.find((version) => version.id === targetVersionId);
+      if (!target) return { ok: false, code: 'NO_TARGET', error: '目标版本不存在，请刷新版本列表' };
+      const source = request.source === 'curseforge' ? 'curseforge' : 'modrinth';
+      const result = await modsCore.dependencies({
+        target,
+        projectId,
+        versionId: request.versionId ? String(request.versionId) : '',
+        gameVersion: String(request.gameVersion || target.mcVersion || '').trim(),
+        loader: modsCore.normalizeLoader(request.loader || modsCore.loaderForVersion(target)),
+        source,
+        title: String(request.title || '').trim(),
+        apiKey: source === 'curseforge' ? s.curseforgeApiKey : '',
+      });
+      return Object.assign({ ok: true }, result);
+    } catch (err) {
+      logger.warn('模组依赖检查失败:', err.message);
+      return { ok: false, code: err.code || 'DEPENDENCY_FAILED', error: err.message };
+    }
+  },
+
   'mods:install': async (payload = {}) => {
     if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
     if (modInstalling) return { ok: false, code: 'BUSY', error: '已有模组正在安装，请稍候' };
@@ -878,6 +908,7 @@ const handlers = {
         loader,
         source,
         apiKey: source === 'curseforge' ? s.curseforgeApiKey : '',
+        includeOptional: Boolean(request.includeOptional),
         signal: controller.signal,
         onProgress: (progress) => broadcast('mod:progress', Object.assign({
           projectId,

@@ -217,11 +217,11 @@ function mapFile(raw, fallbackProjectId) {
     .find((item) => Number(item && item.algo) === 1);
   const releaseType = Number(raw.releaseType) === 2 ? 'beta' : Number(raw.releaseType) === 3 ? 'alpha' : 'release';
   const dependencies = (Array.isArray(raw.dependencies) ? raw.dependencies : [])
-    .filter((dep) => Number(dep && dep.relationType) === 3 && dep.modId != null)
+    .filter((dep) => [2, 3].includes(Number(dep && dep.relationType)) && dep.modId != null)
     .map((dep) => ({
       versionId: '',
       projectId: String(dep.modId),
-      dependencyType: 'required',
+      dependencyType: Number(dep.relationType) === 2 ? 'optional' : 'required',
     }));
 
   return {
@@ -387,12 +387,12 @@ function formatBytes(value) {
 }
 
 async function resolvePlan(initial, options) {
-  const { gameVersion, loader, signal, onProgress } = options;
+  const { gameVersion, loader, signal, onProgress, includeOptional } = options;
   const plan = [];
   const warnings = [];
   const seenVersions = new Set();
   const seenProjects = new Set();
-  const queue = [{ version: initial, required: false, depth: 0, parentKey: '', parentName: '' }];
+  const queue = [{ version: initial, required: false, optional: false, depth: 0, parentKey: '', parentName: '' }];
 
   while (queue.length && plan.length < 30) {
     if (signal && signal.aborted) throw new Error('已取消');
@@ -406,7 +406,7 @@ async function resolvePlan(initial, options) {
       const message = version.projectId
         ? `项目 ${version.projectId} 的作者关闭了第三方下载`
         : 'CurseForge 没有返回可下载文件';
-      if (task.required) warnings.push(message);
+      if (task.required || task.optional) warnings.push(`推荐前置 ${version.name || version.id} 没有可下载文件`);
       else {
         const error = new Error(`${version.name || version.id}：${message}，请到 CurseForge 页面手动下载`);
         error.code = 'CF_DOWNLOAD_DISABLED';
@@ -425,17 +425,20 @@ async function resolvePlan(initial, options) {
       version,
       file,
       required: Boolean(task.required),
+      optional: Boolean(task.optional),
       depth: task.depth || 0,
       parentKey: task.parentKey || '',
       parentName: task.parentName || '',
     });
 
     for (const dep of version.dependencies) {
-      if (dep.dependencyType !== 'required' || !dep.projectId) continue;
+      const isRequired = dep.dependencyType === 'required';
+      const isOptional = dep.dependencyType === 'optional';
+      if ((!isRequired && !(includeOptional && isOptional)) || !dep.projectId) continue;
       if (onProgress) {
         onProgress({
           phase: 'resolve',
-          message: `正在解析前置：${dep.projectId}`,
+          message: `正在解析${isRequired ? '前置' : '推荐前置'}：${dep.projectId}`,
           current: plan.length,
         });
       }
@@ -450,20 +453,21 @@ async function resolvePlan(initial, options) {
         });
         const dependencyVersion = result.versions.find((item) => item.file && item.file.url) || null;
         if (!dependencyVersion) {
-          warnings.push(`找不到必需前置 ${dep.projectId} 的兼容版本`);
+          warnings.push(`找不到${isRequired ? '必需' : '推荐'}前置 ${dep.projectId} 的兼容版本`);
           continue;
         }
         if (dependencyVersion.projectId && seenProjects.has(dependencyVersion.projectId)) continue;
         queue.push({
           version: dependencyVersion,
-          required: true,
+          required: isRequired,
+          optional: isOptional,
           depth: (task.depth || 0) + 1,
           parentKey: currentKey,
           parentName: version.name || version.versionNumber || currentKey,
         });
       } catch (err) {
         if (signal && signal.aborted) throw err;
-        warnings.push(`前置 ${dep.projectId} 解析失败：${err.message}`);
+        warnings.push(`${isRequired ? '必需' : '推荐'}前置 ${dep.projectId} 解析失败：${err.message}`);
       }
     }
   }
@@ -536,6 +540,7 @@ async function preview(options = {}) {
     gameVersion,
     loader,
     signal,
+    includeOptional: true,
     apiKey: options.apiKey,
     onProgress: null,
   });
@@ -555,7 +560,7 @@ async function preview(options = {}) {
       depth: item.depth || 0,
       parentKey: item.parentKey || null,
       parentName: item.parentName || '',
-      optional: false,
+      optional: Boolean(item.optional),
       installed: filename ? present.has(filename.toLowerCase()) : false,
     };
   });
@@ -584,7 +589,7 @@ async function preview(options = {}) {
     edges,
     warnings,
     requiredCount: nodes.filter((node) => node.required).length,
-    optionalCount: 0,
+    optionalCount: nodes.filter((node) => node.optional).length,
     missingCount: nodes.filter((node) => !node.installed).length,
     totalBytes: nodes.reduce((sum, node) => sum + (node.size || 0), 0),
   };
@@ -672,6 +677,7 @@ async function install(options = {}) {
   const { plan, warnings } = await resolvePlan(initial, {
     gameVersion,
     loader,
+    includeOptional: Boolean(options.includeOptional),
     apiKey: key,
     signal,
     onProgress,

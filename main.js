@@ -1008,6 +1008,7 @@ function registerIpc() {
         loader,
         source,
         apiKey: source === 'curseforge' ? s.curseforgeApiKey : '',
+        includeOptional: Boolean(request.includeOptional),
         signal: controller.signal,
         onProgress: (progress) => send('mod:progress', Object.assign({
           projectId,

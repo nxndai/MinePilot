@@ -556,16 +556,18 @@
       ],
     });
     if (!picked) return;
-    const confirmed = await showDependencyPreview(title, projectId, picked, source);
-    if (!confirmed) return;
-    await installMod(projectId, title, picked, source);
+    const preview = await showDependencyPreview(title, projectId, picked, source);
+    if (!preview.confirmed) return;
+    await installMod(projectId, title, picked, source, preview);
   }
 
   function dependencyRow(node) {
     const depth = Math.max(0, Math.min(6, Number(node.depth) || 0));
     const role = depth === 0
       ? '<span class="badge cyan">主模组</span>'
-      : '<span class="badge orange">必需前置</span>';
+      : node.optional
+        ? '<span class="badge violet">推荐前置</span>'
+        : '<span class="badge orange">必需前置</span>';
     const installed = node.installed ? '<span class="badge green">已存在</span>' : '<span class="badge gray">待安装</span>';
     const meta = [node.versionNumber, node.filename].filter(Boolean).join(' · ');
     const via = depth > 0 && node.parentName ? ` title="由 ${esc(node.parentName)} 依赖"` : '';
@@ -604,41 +606,49 @@
         text: `无法读取依赖关系：${result.error || '网络或来源接口异常'}。在缺少前置的情况下启动游戏可能崩溃，仍然要安装吗？`,
         confirmLabel: '仍然安装',
       });
-      return Boolean(proceed);
+      return { confirmed: Boolean(proceed), includeOptional: false };
     }
 
     const nodes = Array.isArray(result.nodes) ? result.nodes : [];
     const warnings = Array.isArray(result.warnings) ? result.warnings : [];
     const missing = nodes.filter((node) => !node.installed).length;
-    const required = Number(result.requiredCount) || Math.max(0, nodes.length - 1);
-    const optional = Number(result.optionalCount) || 0;
+    const required = Number.isFinite(Number(result.requiredCount))
+      ? Number(result.requiredCount)
+      : nodes.filter((node) => node.required).length;
+    const optional = Number.isFinite(Number(result.optionalCount))
+      ? Number(result.optionalCount)
+      : nodes.filter((node) => node.optional).length;
     const warningHtml = warnings.length
       ? `<div class="dep-warnings"><strong>依赖提示</strong><ul>${warnings.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>`
       : '';
     const optionalText = optional
-      ? `<p class="muted-sm">另有 ${optional} 个可选前置未自动安装，可按需手动添加。</p>`
+      ? `<label class="dep-optional-toggle"><input type="checkbox" id="dep-include-optional" checked> 同时下载 ${optional} 个推荐前置（不会跳过必需前置）</label>`
       : '';
     const body = `<p>目标版本：<strong>${esc(target.id)}</strong> · Minecraft ${esc(target.mcVersion || '未知')} · ${esc(LOADER_LABELS[loaderKey(target)] || '未安装加载器')}</p>
-      <p class="muted-sm">已检查 ${nodes.length} 个文件，其中 ${required} 个必需前置；${missing ? `有 ${missing} 个尚未安装` : '当前文件都已存在'}。确认后会按顺序自动补齐。</p>
+      <p class="muted-sm">已检查 ${nodes.length} 个文件，其中 ${required} 个必需前置、${optional} 个推荐前置；${missing ? `有 ${missing} 个尚未安装` : '当前文件都已存在'}。确认后会按顺序自动补齐。</p>
       <div class="dep-tree">${nodes.map(dependencyRow).join('') || '<p class="muted-sm">没有解析到可下载的依赖文件。</p>'}</div>
       ${warningHtml}
       ${optionalText}
-      <p class="muted-sm">依赖树中的“由 … 依赖”表示该前置被上一级模组需要；安装过程中不会跳过必需前置。</p>`;
+      <p class="muted-sm">推荐前置来自模组作者标注的 optional 依赖，默认一起安装，可在上方取消；必需前置不会被跳过。</p>`;
 
-    const confirmed = await MP.modal({
+    const choice = await MP.modal({
       title: `依赖检查 · ${title}`,
       width: 560,
       body,
       actions: [
-        { label: '取消', kind: 'ghost', value: false },
+        { label: '取消', kind: 'ghost', value: null },
         {
-          label: nodes.length > 1 ? `安装全部（${nodes.length} 个文件）` : '开始安装',
+          label: nodes.length > 1 ? '安装所选文件' : '开始安装',
           kind: 'primary',
-          value: true,
+          onClick: (box) => {
+            const toggle = box.querySelector('#dep-include-optional');
+            return { includeOptional: toggle ? toggle.checked : false };
+          },
         },
       ],
     });
-    return confirmed === true;
+    if (!choice) return { confirmed: false, includeOptional: false };
+    return { confirmed: true, includeOptional: Boolean(choice.includeOptional) };
   }
 
   function showInstallBar(title) {
@@ -681,7 +691,7 @@
     }
   }
 
-  async function installMod(projectId, title, versionId, sourceId) {
+  async function installMod(projectId, title, versionId, sourceId, options = {}) {
     if (!onlineDownloadsEnabled()) {
       MP.toast('在线下载已关闭。请先在「设置 → 下载」中勾选“在线下载”。', 'warn', 5500);
       return;
@@ -726,6 +736,7 @@
         targetVersionId: target.id,
         gameVersion: target.mcVersion,
         loader: loaderKey(target),
+        includeOptional: Boolean(options.includeOptional),
       });
     } catch (err) {
       result = { ok: false, error: err.message };

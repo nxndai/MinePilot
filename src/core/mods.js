@@ -4,7 +4,8 @@
  * Modrinth 模组搜索与安装。
  *
  * 只使用 Modrinth 官方公开 API；不抓取 CurseForge，也不内置第三方下载站。
- * 安装时会读取版本依赖，自动补齐 required 前置模组。
+ * 安装时会读取版本依赖，自动补齐 required 前置模组；optional 推荐前置
+ * 只在用户确认勾选时一并安装。
  */
 
 const fs = require('fs');
@@ -278,12 +279,12 @@ function formatBytes(value) {
 }
 
 async function resolvePlan(initial, options) {
-  const { gameVersion, loader, signal, onProgress } = options;
+  const { gameVersion, loader, signal, onProgress, includeOptional } = options;
   const plan = [];
   const warnings = [];
   const seenVersions = new Set();
   const seenProjects = new Set();
-  const queue = [{ version: initial, required: false, depth: 0, parentKey: '', parentName: '' }];
+  const queue = [{ version: initial, required: false, optional: false, depth: 0, parentKey: '', parentName: '' }];
 
   while (queue.length && plan.length < 30) {
     if (signal && signal.aborted) throw new Error('已取消');
@@ -309,17 +310,20 @@ async function resolvePlan(initial, options) {
       version,
       file,
       required: Boolean(task.required),
+      optional: Boolean(task.optional),
       depth: task.depth || 0,
       parentKey: task.parentKey || '',
       parentName: task.parentName || '',
     });
 
     for (const dep of version.dependencies) {
-      if (dep.dependencyType !== 'required') continue;
+      const isRequired = dep.dependencyType === 'required';
+      const isOptional = dep.dependencyType === 'optional';
+      if (!isRequired && !(includeOptional && isOptional)) continue;
       if (onProgress) {
         onProgress({
           phase: 'resolve',
-          message: `正在解析前置：${dep.projectId || dep.versionId || '未知项目'}`,
+          message: `正在解析${isRequired ? '前置' : '推荐前置'}：${dep.projectId || dep.versionId || '未知项目'}`,
           current: plan.length,
         });
       }
@@ -337,20 +341,21 @@ async function resolvePlan(initial, options) {
           dependencyVersion = result.versions[0] || null;
         }
         if (!dependencyVersion) {
-          warnings.push(`找不到必需前置 ${dep.projectId || dep.versionId} 的兼容版本`);
+          warnings.push(`找不到${isRequired ? '必需' : '推荐'}前置 ${dep.projectId || dep.versionId} 的兼容版本`);
           continue;
         }
         if (dependencyVersion.projectId && seenProjects.has(dependencyVersion.projectId)) continue;
         queue.push({
           version: dependencyVersion,
-          required: true,
+          required: isRequired,
+          optional: isOptional,
           depth: (task.depth || 0) + 1,
           parentKey: currentKey,
           parentName: version.name || version.versionNumber || currentKey,
         });
       } catch (err) {
         if (signal && signal.aborted) throw err;
-        warnings.push(`前置 ${dep.projectId || dep.versionId} 解析失败：${err.message}`);
+        warnings.push(`${isRequired ? '必需' : '推荐'}前置 ${dep.projectId || dep.versionId} 解析失败：${err.message}`);
       }
     }
   }
@@ -407,7 +412,13 @@ async function previewDependencies(options = {}) {
     throw error;
   }
 
-  const { plan, warnings } = await resolvePlan(initial, { gameVersion, loader, signal, onProgress: null });
+  const { plan, warnings } = await resolvePlan(initial, {
+    gameVersion,
+    loader,
+    signal,
+    includeOptional: true,
+    onProgress: null,
+  });
   const present = installedFilenames(target);
   const nodes = plan.map((item) => {
     const key = item.version.projectId || item.version.id;
@@ -424,7 +435,7 @@ async function previewDependencies(options = {}) {
       depth: item.depth || 0,
       parentKey: item.parentKey || null,
       parentName: item.parentName || '',
-      optional: false,
+      optional: Boolean(item.optional),
       installed: filename ? present.has(filename.toLowerCase()) : false,
     };
   });
@@ -453,7 +464,7 @@ async function previewDependencies(options = {}) {
     edges,
     warnings,
     requiredCount: nodes.filter((node) => node.required).length,
-    optionalCount: initial.dependencies.filter((dep) => dep.dependencyType !== 'required').length,
+    optionalCount: nodes.filter((node) => node.optional).length,
     missingCount: nodes.filter((node) => !node.installed).length,
     totalBytes: nodes.reduce((sum, node) => sum + (node.size || 0), 0),
   };
@@ -498,7 +509,13 @@ async function install(options = {}) {
   if (onProgress) {
     onProgress({ phase: 'resolve', message: `正在解析 ${initial.name || projectId}…` });
   }
-  const { plan, warnings } = await resolvePlan(initial, { gameVersion, loader, signal, onProgress });
+  const { plan, warnings } = await resolvePlan(initial, {
+    gameVersion,
+    loader,
+    signal,
+    includeOptional: Boolean(options.includeOptional),
+    onProgress,
+  });
 
   let modsDir = path.join(target.gameDir, 'mods');
   let portable = false;

@@ -214,6 +214,78 @@ try {
     assert.strictEqual(vanillaResult.installed[0].filename, 'clientmod-fabric.jar');
     assert.ok(fs.existsSync(path.join(modsDir, 'clientmod-fabric.jar')));
     assert.strictEqual(fs.existsSync(path.join(modsDir, 'clientmod-paper.jar')), false);
+
+    // 依赖检查要同时列出作者标注的 optional 推荐前置，安装时可以一键
+    // 选择是否一并下载；必需前置始终保留。
+    const dependencyVersion = (id, projectId) => ({
+      id,
+      project_id: projectId,
+      name: projectId,
+      version_number: '1.0',
+      date_published: '2026-01-01T00:00:00Z',
+      loaders: ['fabric'],
+      game_versions: ['1.20.1'],
+      files: [{
+        primary: true,
+        filename: `${projectId}-1.0.jar`,
+        url: `https://example.invalid/${projectId}.jar`,
+        size: 8,
+        hashes: { sha1: 'a'.repeat(40) },
+      }],
+      dependencies: [],
+    });
+    const rootVersion = dependencyVersion('root-opt-version', 'root-opt');
+    rootVersion.dependencies = [
+      { project_id: 'req-lib', dependency_type: 'required' },
+      { project_id: 'opt-lib', dependency_type: 'optional' },
+    ];
+    net.fetchJson = async (url) => {
+      const text = String(url);
+      if (text.includes('/version/root-opt-version')) return rootVersion;
+      if (text.includes('/project/req-lib/version')) return [dependencyVersion('req-version', 'req-lib')];
+      if (text.includes('/project/opt-lib/version')) return [dependencyVersion('opt-version', 'opt-lib')];
+      throw new Error(`unexpected URL ${text}`);
+    };
+
+    const preview = await mods.previewDependencies({
+      target: { id: 'fabric-deps', gameDir: path.join(root, 'deps-preview'), mcVersion: '1.20.1' },
+      projectId: 'root-opt',
+      versionId: 'root-opt-version',
+      gameVersion: '1.20.1',
+      loader: 'fabric',
+    });
+    assert.strictEqual(preview.requiredCount, 1);
+    assert.strictEqual(preview.optionalCount, 1);
+    const optionalNode = preview.nodes.find((node) => node.projectId === 'opt-lib');
+    assert.ok(optionalNode);
+    assert.strictEqual(optionalNode.optional, true);
+    assert.strictEqual(optionalNode.required, false);
+
+    const withoutOptional = await mods.install({
+      target: { id: 'fabric-deps-1', gameDir: path.join(root, 'deps-without'), mcVersion: '1.20.1' },
+      projectId: 'root-opt',
+      versionId: 'root-opt-version',
+      gameVersion: '1.20.1',
+      loader: 'fabric',
+      includeOptional: false,
+    });
+    assert.deepStrictEqual(
+      withoutOptional.installed.map((item) => item.filename).sort(),
+      ['req-lib-1.0.jar', 'root-opt-1.0.jar']
+    );
+
+    const withOptional = await mods.install({
+      target: { id: 'fabric-deps-2', gameDir: path.join(root, 'deps-with'), mcVersion: '1.20.1' },
+      projectId: 'root-opt',
+      versionId: 'root-opt-version',
+      gameVersion: '1.20.1',
+      loader: 'fabric',
+      includeOptional: true,
+    });
+    assert.deepStrictEqual(
+      withOptional.installed.map((item) => item.filename).sort(),
+      ['opt-lib-1.0.jar', 'req-lib-1.0.jar', 'root-opt-1.0.jar']
+    );
   } finally {
     net.fetchJson = originalFetchJson;
     net.downloadFile = originalDownloadFile;

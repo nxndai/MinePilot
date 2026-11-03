@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.11.4（2026-11-02 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.5（2026-11-03 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -13,7 +13,7 @@
 
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.11.4.exe`。
+- 下载 `MinePilot_Setup_1.11.5.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
@@ -32,7 +32,7 @@
 - 原版下载：从 Mojang 官方源获取版本清单，逐版本安装客户端、依赖库、natives 与资源文件。下载源可选“自动（官方优先、镜像兜底）”“BMCLAPI 镜像优先”或“仅官方源”，元数据、依赖库、资源文件和加载器安装器都会按选择顺序尝试，并在失败时自动回退。
 - 启动前完整性校验：每次启动自动检查客户端主文件、运行库、natives、日志配置、资源索引和资源对象。开启“在线下载”时，缺失或 SHA1 校验失败的文件会在启动前自动补全；关闭时只做本地校验，发现缺失会提示开启开关后修复。已校验文件使用“大小 + 修改时间”缓存，第二次启动只做快速检查。加载器版本会检查它继承的原版 client.jar。
 - 加载器安装：在「版本」页或「下载」页点击「加载器」，会自动识别并一键安装 **Fabric / Forge / NeoForge / Quilt**。Fabric、Quilt 通过官方 Meta 获取启动配置并补全库文件；Forge、NeoForge 自动下载官方安装器、调用 Java 静默安装并识别生成的版本，全程无需手动下载或放置文件。弹窗会标记当前已安装版本，并默认选择推荐/稳定版。
-- 模组下载：在「模组」页从 **Modrinth** 或 **CurseForge** 搜索模组，按目标版本的游戏版本与加载器（Fabric / Forge / NeoForge / Quilt）过滤，并支持「功能、优化、科技、魔法、冒险、装饰、世界生成、库/API」等分类筛选。安装时会先展示依赖检查弹窗和依赖树，列出主模组、必需前置、层级关系、是否已存在以及风险提示；确认后自动解析并补齐 required 前置，下载到该版本的 `mods` 目录。可选前置只提示、不自动安装。支持选择具体文件版本、SHA1 校验和安装进度显示。Modrinth 开箱可用；CurseForge 官方 API 要求在「设置 → 模组来源」填入自己的 API Key，Key 只保存在本机，不会上传到其他服务器。
+- 模组下载：在「模组」页从 **Modrinth** 或 **CurseForge** 搜索模组，按目标版本的游戏版本与加载器（Fabric / Forge / NeoForge / Quilt）过滤，并支持「功能、优化、科技、魔法、冒险、装饰、世界生成、库/API」等分类筛选。安装时会先展示依赖检查弹窗和依赖树，列出主模组、必需前置、层级关系、是否已存在以及风险提示；确认后自动解析并补齐 required 前置，下载到该版本的 `mods` 目录；作者标注的 optional 推荐前置默认一并勾选下载，也可以在弹窗里取消，只安装必需前置。支持选择具体文件版本、SHA1 校验和安装进度显示。Modrinth 开箱可用；CurseForge 官方 API 要求在「设置 → 模组来源」填入自己的 API Key，Key 只保存在本机，不会上传到其他服务器。
 - 可视化模组管理：在「模组与整合包」页按实例列出已安装模组，复选框即可启用/禁用；禁用只是把文件重命名为 `.jar.disabled`，不会移动文件。列表会读取 `fabric.mod.json`、`quilt.mod.json`、`neoforge.mods.toml`、`mods.toml` 或 `mcmod.info` 显示模组名称、版本、加载器和客户端/服务端标记，并同时识别游戏目录和便携目录里的 mods。
 - 模组健康检查：读取模组元数据里的 `depends` / `dependencies` 后检查缺失的必需前置、前置版本范围、被禁用前置、重复 modid 和客户端/服务端模组混装，并在实例卡片上直接列出问题文件和修复入口。支持按名称、加载器、客户端/服务端和“有问题的”状态筛选，可对当前筛选结果批量启用或禁用。
 - 模组更新检查：按已启用 JAR 的 SHA1 在 Modrinth 反查版本，再按当前游戏版本与加载器获取最新版本，列出“已安装 → 可更新”的差异并提供项目页面入口。没有发布到 Modrinth、无法联网或作者禁用第三方下载的模组会被跳过，不会把猜测结果当成更新。
@@ -78,7 +78,7 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 
 - 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
   ```powershell
-  Get-FileHash .\MinePilot_Setup_1.11.4.exe -Algorithm SHA256
+  Get-FileHash .\MinePilot_Setup_1.11.5.exe -Algorithm SHA256
   ```
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
@@ -134,6 +134,13 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 5. 安全漏洞不要公开提交，请按 [SECURITY.md](SECURITY.md) 私下联系。
 
 ## 更新记录
+
+### 1.11.5
+
+- 模组安装前的依赖检查现在会列出作者标注的 **optional 推荐前置**，并与必需前置一起构成完整依赖树；默认勾选“同时下载推荐前置”，也可以取消后只安装必需前置。
+- 推荐前置支持递归解析，Modrinth 和 CurseForge 的 optional 依赖都会纳入清单；依赖检查窗口会显示“推荐前置”标记、数量和说明。
+- 安装请求新增 `includeOptional` 选项，只有用户确认勾选时才会下载可选依赖；必需前置仍然始终安装。
+- 补充推荐前置预览、安装选择和必需/可选依赖区分的回归测试。
 
 ### 1.11.4
 
@@ -329,13 +336,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.11.4",
+  "version": "1.11.5",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.11.4.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.11.4.exe",
+      "name": "MinePilot_Setup_1.11.5.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.5.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -505,7 +512,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.4.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.5.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -513,7 +520,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.4.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.5.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
