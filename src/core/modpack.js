@@ -741,9 +741,70 @@ async function exportPack(target, options = {}) {
   };
 }
 
+/**
+ * 从 Modrinth 下载 .mrpack 并直接导入为独立实例。
+ * 仅允许 Modrinth CDN，避免把任意 URL 变成启动器下载器。
+ */
+async function installFromUrl(options = {}) {
+  const rawUrl = String(options.url || '').trim();
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch (err) {
+    const error = new Error('整合包下载地址无效');
+    error.code = 'BAD_PACK_URL';
+    throw error;
+  }
+  if (parsed.protocol !== 'https:' || !['cdn.modrinth.com', 'cdn-raw.modrinth.com'].includes(parsed.hostname)) {
+    const error = new Error('只支持从 Modrinth 官方 CDN 下载整合包');
+    error.code = 'BAD_PACK_URL';
+    throw error;
+  }
+
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : () => {};
+  const signal = options.signal || null;
+  const tempDir = packTempDir();
+  const originalName = String(options.filename || 'modpack.mrpack');
+  const extension = /\.zip$/i.test(originalName) ? '.zip' : '.mrpack';
+  const baseName = safeName(originalName.replace(/\.(?:mrpack|zip)$/i, ''), 80);
+  const filePath = path.join(tempDir, `${baseName}${extension}`);
+  const totalBytes = Number(options.size) || 0;
+
+  try {
+    onProgress({ phase: '下载整合包', percent: 1, message: `正在下载 ${baseName}${extension}` });
+    await net.downloadFile(rawUrl, filePath, {
+      sha1: options.sha1 || null,
+      signal,
+      retries: 3,
+      onBytes: (received) => {
+        const percent = totalBytes
+          ? Math.min(45, Math.max(1, Math.floor((received / totalBytes) * 45)))
+          : 5;
+        onProgress({
+          phase: '下载整合包',
+          percent,
+          message: `正在下载 ${baseName}${extension}`,
+          received,
+          bytes: totalBytes,
+        });
+      },
+    });
+    onProgress({ phase: '导入整合包', percent: 48, message: '下载完成，正在解压并安装…' });
+    const result = await importPack(filePath, {
+      mode: 'new',
+      signal,
+      onProgress: mapProgress(onProgress, 50, 100, '导入整合包'),
+    });
+    return Object.assign({ downloaded: true }, result);
+  } finally {
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) { /* 忽略清理失败 */ }
+  }
+}
+
 module.exports = {
   inspect,
   importPack,
+  installFromUrl,
   exportPack,
   CONTENT_DIRS,
   CONTENT_FILES,

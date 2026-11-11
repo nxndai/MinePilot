@@ -1183,6 +1183,7 @@ function registerIpc() {
       }
       const result = await modpack.importPack(filePath, {
         target,
+        mode: payload && payload.mode === 'new' ? 'new' : 'current',
         signal: controller.signal,
         onProgress: (progress) => send('modpack:progress', Object.assign({ filePath }, progress)),
       });
@@ -1195,6 +1196,41 @@ function registerIpc() {
         ok: false,
         code: canceled ? 'CANCELED' : (err.code || 'PACK_IMPORT_FAILED'),
         error: canceled ? '已取消导入' : err.message,
+      };
+      send('modpack:error', failure);
+      return failure;
+    } finally {
+      packImporting = null;
+    }
+  });
+
+  ipcMain.handle('modpack:download', async (event, payload = {}) => {
+    if (!onlineDownloadsEnabled()) return onlineDownloadsBlocked();
+    if (packImporting) return { ok: false, code: 'BUSY', error: '已有整合包正在导入，请稍候' };
+    const request = payload || {};
+    const url = String(request.url || '').trim();
+    const title = String(request.title || '').trim();
+    if (!url) return { ok: false, code: 'BAD_PACK_URL', error: '缺少整合包下载地址' };
+    const controller = new AbortController();
+    packImporting = { filePath: url, targetVersionId: '', controller };
+    try {
+      const result = await modpack.installFromUrl({
+        url,
+        sha1: request.sha1 ? String(request.sha1) : '',
+        filename: request.filename ? String(request.filename) : '',
+        size: Number(request.size) || 0,
+        signal: controller.signal,
+        onProgress: (progress) => send('modpack:progress', Object.assign({ title }, progress)),
+      });
+      send('modpack:done', result);
+      return result;
+    } catch (err) {
+      logger.warn('在线整合包下载失败:', err.message);
+      const canceled = controller.signal.aborted;
+      const failure = {
+        ok: false,
+        code: canceled ? 'CANCELED' : (err.code || 'PACK_DOWNLOAD_FAILED'),
+        error: canceled ? '已取消下载' : err.message,
       };
       send('modpack:error', failure);
       return failure;

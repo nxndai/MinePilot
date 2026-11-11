@@ -286,6 +286,13 @@ try {
       withOptional.installed.map((item) => item.filename).sort(),
       ['opt-lib-1.0.jar', 'req-lib-1.0.jar', 'root-opt-1.0.jar']
     );
+
+    // 在线整合包只接受 Modrinth CDN，不能把启动器变成任意 URL 下载器。
+    const modpack = require('../src/core/modpack');
+    await assert.rejects(
+      () => modpack.installFromUrl({ url: 'https://example.com/pack.mrpack' }),
+      /Modrinth/
+    );
   } finally {
     net.fetchJson = originalFetchJson;
     net.downloadFile = originalDownloadFile;

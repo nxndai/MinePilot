@@ -44,6 +44,7 @@
   let searchSeq = 0;
   let lastTargetId = '';
   let source = 'modrinth';
+  let projectType = 'mod';
   let category = '';
   let categories = {
     modrinth: MODRINTH_CATEGORIES,
@@ -66,6 +67,14 @@
 
   function onlineDownloadsEnabled() {
     return Boolean(MP.state.settings && MP.state.settings.onlineDownloads);
+  }
+
+  function isModpack() {
+    return projectType === 'modpack';
+  }
+
+  function projectTypeLabel() {
+    return isModpack() ? '整合包' : '模组';
   }
 
   function targetVersion() {
@@ -153,6 +162,9 @@
     MP.$$('#mod-source-tabs button').forEach((button) => {
       button.classList.toggle('active', button.dataset.modSource === source);
     });
+    MP.$$('#mod-type-tabs button').forEach((button) => {
+      button.classList.toggle('active', button.dataset.modType === projectType);
+    });
     if ($('#mod-source-chip')) {
       $('#mod-source-chip').textContent = source === 'curseforge' && !cfKey()
         ? 'CurseForge 未配置 Key'
@@ -164,9 +176,11 @@
       $('#mod-search').disabled = missingKey || offline;
       $('#mod-search').placeholder = offline
         ? '在线下载已关闭，请先在设置中开启'
-        : source === 'curseforge'
-          ? '搜索 CurseForge 模组，例如 JEI、Create'
-          : '搜索 Modrinth 模组，例如 Sodium、JEI、Create';
+        : isModpack()
+          ? '搜索 Modrinth 整合包，例如 Fabulously Optimized'
+          : source === 'curseforge'
+            ? '搜索 CurseForge 模组，例如 JEI、Create'
+            : '搜索 Modrinth 模组，例如 Sodium、JEI、Create';
     }
     if ($('#btn-mod-search')) $('#btn-mod-search').disabled = missingKey || offline;
     if ($('#mod-source-chip') && offline) $('#mod-source-chip').textContent = '在线下载已关闭';
@@ -175,6 +189,10 @@
   function renderCategories() {
     const wrap = $('#mod-cats');
     if (!wrap) return;
+    if (isModpack()) {
+      wrap.innerHTML = '<span class="mod-key-note">整合包会创建独立实例，下载后再选择启动</span>';
+      return;
+    }
     if (source === 'curseforge' && !cfKey()) {
       wrap.innerHTML = '<span class="mod-key-note">填写 CurseForge API Key 后可按分类筛选</span>';
       return;
@@ -244,6 +262,15 @@
     if (source === 'curseforge' && !cfKey()) {
       hint.classList.add('warn');
       hint.textContent = 'CurseForge 需要 API Key：请到「设置 → 模组来源」填写；Modrinth 不需要配置，可直接使用。';
+      return;
+    }
+    if (isModpack()) {
+      if (source !== 'modrinth') {
+        hint.classList.add('warn');
+        hint.textContent = '在线整合包目前只支持 Modrinth；CurseForge 整合包请用下方「导入整合包」选择本地 .zip 清单。';
+        return;
+      }
+      hint.textContent = `搜索 Modrinth 整合包 · 下载 .mrpack 后会创建独立实例，不会修改当前 ${target.id}`;
       return;
     }
     const loader = loaderKey(target);
@@ -335,25 +362,28 @@
 
   function rowHTML(hit) {
     const target = targetVersion();
-    const key = target ? `${source}|${target.id}|${hit.projectId}` : '';
+    const pack = isModpack();
+    const key = target && !pack ? `${source}|${target.id}|${hit.projectId}` : '';
     const installed = key && installedKeys.has(key);
     const loaderNames = new Set(['fabric', 'forge', 'neoforge', 'quilt', 'Fabric', 'Forge', 'NeoForge', 'Quilt']);
     const categories = (hit.categories || []).filter((item) => !loaderNames.has(item));
     const shownCategories = categories.slice(0, 3);
     const tags = shownCategories.map((item) => `<span class="badge gray">${esc(item)}</span>`).join('');
-    const loaderBadge = target && loaderKey(target)
+    const loaderBadge = !pack && target && loaderKey(target)
       ? `<span class="badge">${esc(LOADER_LABELS[loaderKey(target)])}</span>`
       : '';
     const installedBadge = installed ? '<span class="badge green">已安装</span>' : '';
     const url = projectUrl(hit);
-    const serverOnly = hit.clientSide === 'unsupported';
-    const noLoader = Boolean(target && !loaderKey(target));
+    const serverOnly = !pack && hit.clientSide === 'unsupported';
+    const noLoader = !pack && Boolean(target && !loaderKey(target));
     const blocked = hit.installable === false;
-    const action = serverOnly
-      ? '<button class="btn small" disabled title="这是仅服务端/插件版本，客户端无法加载">仅服务端</button>'
-      : blocked
-        ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
-        : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}"${noLoader ? ' title="当前实例没有加载器，下载后暂时不会生效"' : ''}>${noLoader ? '下载' : (installed ? '重新安装' : '安装')}</button>`;
+    const action = blocked
+      ? '<button class="btn small" disabled title="作者关闭了第三方下载">禁止下载</button>'
+      : pack
+        ? `<button class="btn small primary" data-modpack-install="${esc(hit.projectId)}" data-modpack-title="${esc(hit.title)}">下载整合包</button>`
+        : serverOnly
+          ? '<button class="btn small" disabled title="这是仅服务端/插件版本，客户端无法加载">仅服务端</button>'
+          : `<button class="btn small ${installed ? 'ghost' : 'primary'}" data-mod-install="${esc(hit.projectId)}" data-mod-title="${esc(hit.title)}"${noLoader ? ' title="当前实例没有加载器，下载后暂时不会生效"' : ''}>${noLoader ? '下载' : (installed ? '重新安装' : '安装')}</button>`;
 
     return `<div class="card mod-row">
       ${iconHTML(hit)}
@@ -367,7 +397,7 @@
         <div class="mod-tags">
           <span class="badge gray">${esc(SOURCE_LABELS[hit.source] || SOURCE_LABELS[source])}</span>
           ${loaderBadge}
-          ${sideBadge(hit)}
+          ${pack ? '<span class="badge violet">整合包</span>' : sideBadge(hit)}
           ${tags}
           <span class="mod-stat">下载 ${fmtCount(hit.downloads)}</span>
           <span class="mod-stat">更新于 ${MP.fmtDate(hit.dateModified)}</span>
@@ -420,7 +450,7 @@
                 : '当前实例还是原版，没有加载器；请安装 1.20.1，并为它安装 Forge、Fabric 或 NeoForge。')
           );
         } else {
-          setEmpty(currentQuery() ? '没有找到模组' : '这个筛选下暂时没有模组', `${targetInfo}\n${filterInfo}。换一个英文关键词，或切换分类/数据源后重试。`);
+          setEmpty(currentQuery() ? `没有找到${projectTypeLabel()}` : `这个筛选下暂时没有${projectTypeLabel()}`, `${targetInfo}\n${filterInfo}。换一个英文关键词，或切换分类/数据源后重试。`);
         }
       }
       return;
@@ -445,6 +475,13 @@
       render();
       return;
     }
+    if (isModpack() && source !== 'modrinth') {
+      hits = [];
+      totalHits = 0;
+      render();
+      setEmpty('在线整合包目前只支持 Modrinth', 'CurseForge 整合包请使用下方「导入整合包」选择本地 .zip 清单。');
+      return;
+    }
     const queryInput = $('#mod-search');
     const query = queryInput ? queryInput.value.trim() : '';
     const offset = reset ? 0 : hits.length;
@@ -467,6 +504,7 @@
     try {
       result = await MP.api.invoke('mods:search', {
         source,
+        projectType,
         category,
         query,
         gameVersion: target.mcVersion,
@@ -559,6 +597,109 @@
     const preview = await showDependencyPreview(title, projectId, picked, source);
     if (!preview.confirmed) return;
     await installMod(projectId, title, picked, source, preview);
+  }
+
+  async function chooseModpack(projectId, title) {
+    if (source !== 'modrinth') {
+      MP.toast('在线整合包目前只支持 Modrinth', 'warn', 5000);
+      return;
+    }
+    const target = targetVersion();
+    let result;
+    try {
+      result = await MP.api.invoke('mods:versions', {
+        source: 'modrinth',
+        projectId,
+        gameVersion: target ? target.mcVersion : '',
+        loader: target ? loaderKey(target) : '',
+      });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result.ok) {
+      MP.toast(`读取整合包版本失败：${result.error}`, 'err', 6000);
+      return;
+    }
+    const versions = (Array.isArray(result.versions) ? result.versions : [])
+      .filter((version) => version.file && version.file.url && /\.(mrpack|zip)$/i.test(version.file.filename || ''));
+    if (!versions.length) {
+      MP.toast('这个整合包没有适用于当前版本的可下载文件', 'warn', 5500);
+      return;
+    }
+    const options = versions.slice(0, 20).map((version) => {
+      const size = version.file && version.file.size ? ` · ${MP.fmtBytes(version.file.size)}` : '';
+      return `<option value="${esc(version.id)}">${esc(`${version.versionNumber || version.name} · ${MP.fmtDate(version.datePublished)}${size}`)}</option>`;
+    }).join('');
+    const picked = await MP.modal({
+      title: `下载整合包 · ${title}`,
+      width: 540,
+      body: `<p class="muted-sm">选择要下载的 .mrpack 文件；下载完成后会创建一个独立实例，不会修改当前 ${esc(target ? target.id : '实例')}。</p>
+        <select id="modpack-version-pick" class="input mod-version-select">${options}</select>
+        <p class="muted-sm">最新文件：${esc(versions[0].file.filename || '')}</p>`,
+      actions: [
+        { label: '取消', kind: 'ghost', value: null },
+        {
+          label: '下一步',
+          kind: 'primary',
+          onClick: (box) => {
+            const select = box.querySelector('#modpack-version-pick');
+            return select ? select.value : null;
+          },
+        },
+      ],
+    });
+    if (!picked) return;
+    const version = versions.find((item) => item.id === picked);
+    if (!version) return;
+    const confirmed = await MP.confirm({
+      title: '创建独立实例',
+      text: `将下载 ${version.file.filename || '整合包'}，并自动安装它需要的 Minecraft / 加载器。整个过程不会修改当前实例，完成后可以在版本列表里启动。`,
+      confirmLabel: '下载并导入',
+    });
+    if (!confirmed) return;
+    if (packBusy) {
+      MP.toast('已有整合包任务正在进行', 'warn');
+      return;
+    }
+
+    setPackBusy(true, 'download');
+    showPackBar(`正在下载 ${title}`);
+    try {
+      result = await MP.api.invoke('modpack:download', {
+        url: version.file.url,
+        sha1: version.file.sha1 || '',
+        filename: version.file.filename || `${title}.mrpack`,
+        size: version.file.size || 0,
+        title,
+      });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    setPackBusy(false, '');
+    if (!result || !result.ok) {
+      hidePackBar();
+      if (result && result.code === 'CANCELED') MP.toast('已取消下载', 'warn');
+      else MP.toast(`下载整合包失败：${(result && result.error) || '未知错误'}`, 'err', 7000);
+      return;
+    }
+    if ($('#pack-pb-title')) $('#pack-pb-title').textContent = `已导入 ${result.name || title}`;
+    if ($('#pack-pb-phase')) $('#pack-pb-phase').textContent = '已创建独立实例，可以启动游戏了';
+    if ($('#pack-pb-fill')) $('#pack-pb-fill').style.width = '100%';
+    if ($('#pack-pb-percent')) $('#pack-pb-percent').textContent = '100%';
+    await MP.refreshVersions();
+    if (result.versionId) {
+      MP.selectVersion(result.versionId);
+      const select = $('#mod-target');
+      if (select) select.value = result.versionId;
+      populateTargets();
+      lastTargetId = result.versionId;
+    }
+    await loadInstalled();
+    if (Array.isArray(result.warnings) && result.warnings.length) {
+      MP.toast(result.warnings[0], 'warn', 8000);
+    } else {
+      MP.toast(`已下载并导入 ${result.name || title}`, 'ok', 6000);
+    }
   }
 
   function dependencyRow(node) {
@@ -1122,7 +1263,7 @@
       if (button) button.disabled = packBusy;
     });
     const cancel = $('#btn-cancel-pack');
-    if (cancel) cancel.disabled = packBusy && packMode !== 'import';
+    if (cancel) cancel.disabled = packBusy && !['import', 'download'].includes(packMode);
   }
 
   function showPackBar(title) {
@@ -1172,6 +1313,12 @@
         ? `将新建独立实例，并自动安装 Minecraft ${esc(info.minecraft || '未知')} · ${esc(loader)}。`
         : `将合并到当前实例 ${esc(target ? target.id : '（未选择）')}，不会删除现有 mods。`;
     const warnings = Array.isArray(info.warnings) ? info.warnings : [];
+    const modePicker = info.action === 'new'
+      ? `<div class="pack-mode">
+          <label><input type="radio" name="pack-import-mode" value="new" checked> 新建独立实例（推荐）</label>
+          <label><input type="radio" name="pack-import-mode" value="current"> 合并到当前实例</label>
+        </div>`
+      : '';
     return `<p class="muted-sm">${esc(info.name || '整合包')} · ${esc(info.fileName || '')}</p>
       <div class="pack-facts">
         <div><span>类型</span><strong>${esc(info.kind === 'mrpack' ? 'Modrinth .mrpack' : info.kind === 'minepilot' ? 'MinePilot ZIP' : info.kind === 'curseforge' ? 'CurseForge 清单' : 'ZIP 整合包')}</strong></div>
@@ -1180,6 +1327,7 @@
         <div><span>内容</span><strong>${Number(info.files) || 0} 个清单文件 · ${Number(info.overrides) || 0} 个覆盖文件</strong></div>
       </div>
       <p>${action}</p>
+      ${modePicker}
       ${warnings.length ? `<div class="pack-warnings">${warnings.map((warning) => `<p>${esc(warning)}</p>`).join('')}</div>` : ''}`;
   }
 
@@ -1234,14 +1382,22 @@
       body: packInfoBody(info),
       actions: [
         { label: '取消', value: false },
-        { label: '开始导入', kind: 'primary', value: true },
+        {
+          label: '开始导入',
+          kind: 'primary',
+          onClick: (box) => {
+            const checked = box.querySelector('input[name="pack-import-mode"]:checked');
+            if (checked) return checked.value;
+            return info.action === 'new' ? 'new' : 'current';
+          },
+        },
       ],
     });
-    if (confirmed !== true) return;
-    await startImport(path);
+    if (!confirmed) return;
+    await startImport(path, confirmed);
   }
 
-  async function startImport(path) {
+  async function startImport(path, mode) {
     if (!onlineDownloadsEnabled()) {
       MP.toast('在线下载已关闭。请先在「设置 → 下载」中勾选“在线下载”。', 'warn', 5500);
       return;
@@ -1254,6 +1410,7 @@
       result = await MP.api.invoke('modpack:import', {
         path,
         targetVersionId: target ? target.id : '',
+        mode: mode === 'new' ? 'new' : 'current',
       });
     } catch (err) {
       result = { ok: false, error: err.message };
@@ -1432,9 +1589,31 @@
       if (url) MP.openExternal(url);
       return;
     }
+    const packButton = event.target.closest('button[data-modpack-install]');
+    if (packButton) {
+      chooseModpack(packButton.dataset.modpackInstall, packButton.dataset.modpackTitle || '整合包');
+      return;
+    }
     const button = event.target.closest('button[data-mod-install]');
     if (!button) return;
     chooseVersion(button.dataset.modInstall, button.dataset.modTitle || '模组');
+  }
+
+  async function setProjectType(next) {
+    const type = next === 'modpack' ? 'modpack' : 'mod';
+    if (type === projectType) return;
+    projectType = type;
+    category = '';
+    hits = [];
+    totalHits = 0;
+    searchSeq += 1;
+    loading = false;
+    updateSourceUI();
+    renderCategories();
+    render();
+    if (MP.state.view === 'mods' && targetVersion() && onlineDownloadsEnabled()) {
+      await doSearch(true);
+    }
   }
 
   async function setSource(next) {
@@ -1536,6 +1715,10 @@
     MP.on('#mod-source-tabs', 'click', (event) => {
       const button = event.target.closest('[data-mod-source]');
       if (button) setSource(button.dataset.modSource);
+    });
+    MP.on('#mod-type-tabs', 'click', (event) => {
+      const button = event.target.closest('[data-mod-type]');
+      if (button) setProjectType(button.dataset.modType);
     });
     MP.on('#mod-cats', 'click', onCategoryClick);
     MP.on('#btn-mod-search', 'click', () => doSearch(true));

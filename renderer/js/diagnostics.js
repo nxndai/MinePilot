@@ -74,7 +74,7 @@
         <div>
           <h4>${esc(cause.title)}<span class="diag-confidence">${esc(confidenceLabel(cause.confidence))}</span></h4>
           <p>${esc(cause.detail)}</p>
-          ${cause.evidence ? `<pre class="diag-evidence">${esc(cause.evidence)}</pre>` : ''}
+          ${cause.evidence ? `<pre class="diag-evidence" title="${esc(cause.evidence)}">${esc(cause.evidence)}</pre>` : ''}
           ${actions.length ? `<div class="diag-cause-actions">${actions.map((action) => `
             <button class="btn small ghost ${action.danger ? 'danger-text' : ''}" data-diag-action="${esc(action.id)}" data-diag-kind="${esc(action.kind || '')}" data-diag-view="${esc(action.view || '')}" data-diag-search="${esc(action.search === true ? '1' : (action.search || ''))}">${esc(action.label || action.id)}</button>
           `).join('')}</div>` : ''}
