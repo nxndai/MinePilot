@@ -60,13 +60,18 @@ tar.exe -a -c -f $zip -C $src --exclude=data --exclude=./data .
 $h=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 "$h  MinePilot_1.11.6_portable.zip" | Set-Content "$zip.sha256" -Encoding ascii -NoNewline
 
-# 4. 提交推送（信息别用 wip:）
+# 4. 同步文档（用户明确要求：以后每次发版都要一起更新）
+#    README.md：顶部「当前最新版本」与日期、快速开始里的文件名（安装包 / 便携包）、
+#               受影响的功能条目、更新记录新增小节、已知限制
+#    HANDOFF.md：当前状态、已验证 / 未验证、网络与归档约定
+
+# 5. 提交推送（信息别用 wip:）
 git add -A; git commit -m "feat: ..."; git push origin main
 
-# 5. 打标签触发 Actions 构建
+# 6. 打标签触发 Actions 构建
 git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
 
-# 6. 等 Actions 成功，再把 portable zip + .sha256 用 API 传到 Release，
+# 7. 等 Actions 成功，再把 portable zip + .sha256 用 API 传到 Release，
 #    并把「新增 / 验证」小节和便携版条目补进 Release 说明
 ```
 

@@ -15,6 +15,7 @@
 
 - 下载 `MinePilot_Setup_1.11.6.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
+- 不想安装时，可下载 `MinePilot_1.11.6_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
@@ -36,7 +37,7 @@
 - 可视化模组管理：在「模组与整合包」页按实例列出已安装模组，复选框即可启用/禁用；禁用只是把文件重命名为 `.jar.disabled`，不会移动文件。列表会读取 `fabric.mod.json`、`quilt.mod.json`、`neoforge.mods.toml`、`mods.toml` 或 `mcmod.info` 显示模组名称、版本、加载器和客户端/服务端标记，并同时识别游戏目录和便携目录里的 mods。
 - 模组健康检查：读取模组元数据里的 `depends` / `dependencies` 后检查缺失的必需前置、前置版本范围、被禁用前置、重复 modid 和客户端/服务端模组混装，并在实例卡片上直接列出问题文件和修复入口。支持按名称、加载器、客户端/服务端和“有问题的”状态筛选，可对当前筛选结果批量启用或禁用。
 - 模组更新检查：按已启用 JAR 的 SHA1 在 Modrinth 反查版本，再按当前游戏版本与加载器获取最新版本，列出“已安装 → 可更新”的差异并提供项目页面入口。没有发布到 Modrinth、无法联网或作者禁用第三方下载的模组会被跳过，不会把猜测结果当成更新。
-- 整合包导入导出：把 `.mrpack` 或 `.zip` 拖到导入区，先预览整合包名称、Minecraft 版本、加载器、文件数量和警告，再确认导入。`.mrpack` 会按清单下载文件并校验 SHA512；带 Minecraft/加载器信息的整合包会自动安装对应版本并创建强制隔离的独立实例，避免污染现有模组。也可以把当前实例导出为 `.mrpack`（推荐，可被其他启动器识别）或 `.zip`，导出内容包含 mods、config、defaultconfigs、kubejs、scripts、resourcepacks、shaderpacks、datapacks 和 options.txt，不包含存档、日志、账户或启动器设置。CurseForge 清单 ZIP 只识别不下载，避免猜测文件直链。
+- 整合包在线下载与导入导出：在「模组与整合包」页切到「整合包」，可以直接搜索 **Modrinth 整合包**并下载 `.mrpack`，校验 SHA1 后自动创建独立实例，不改动当前实例；下载和导入都会显示进度并支持取消。本地导入则把 `.mrpack` 或 `.zip` 拖到导入区，先预览整合包名称、Minecraft 版本、加载器、文件数量和警告，再确认导入；导入方式可选「新建独立实例」或「合并到当前实例」，默认新建独立实例。`.mrpack` 导入会按清单下载文件并校验 SHA512；带 Minecraft/加载器信息时会自动安装对应版本并创建强制隔离的独立实例，避免污染现有模组。也可以把当前实例导出为 `.mrpack`（推荐，可被其他启动器识别）或 `.zip`，导出内容包含 mods、config、defaultconfigs、kubejs、scripts、resourcepacks、shaderpacks、datapacks 和 options.txt，不包含存档、日志、账户或启动器设置。CurseForge 清单 ZIP 只识别不下载，避免猜测文件直链。
 - 资源包 / 光影 / 数据包管理：新增「内容」页，按实例列出 `resourcepacks`、`shaderpacks` 和 `datapacks`，读取 `pack.mcmeta` 的名称、描述、格式版本与图标；资源包启用状态写入 `options.txt`，光影写入 `config/iris.properties`，停用会重命名/移动而不删除文件。支持导入 ZIP、预览详情、删除到内容回收站，以及从 Modrinth 按资源包/光影/数据包类型搜索下载并自动启用。
 - 联机与内网穿透：新增「联机」页，为 Terracotta / EasyTier / frp 提供官方引导和可选配置模板。填写可执行文件、参数和工作目录后可以一键启动/停止本机联机工具、查看输出并复制局域网地址，参数直接传给进程而不经过 shell。**不捆绑任何第三方二进制、不代管密钥、不绕过正版认证**；浏览器版只展示引导，不能启动本机程序。
 - 多账户与安全存储：账户面板支持多个离线账户和多个 Microsoft 账户，可快速切换、设置备注和查看登录有效期；启动时和切换账户时会自动刷新过期凭据。桌面版通过 Electron `safeStorage`（系统钥匙串）加密保存令牌，文件中不再出现明文 access/refresh token；系统安全存储不可用时会明确警告并退回明文。离线账户名与启动身份保持同步。
@@ -141,6 +142,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 - 整合包下载使用官方 Modrinth CDN，校验文件 SHA1，显示下载/导入进度，并支持取消。
 - 导入本地整合包时新增「新建独立实例 / 合并到当前实例」选项；`.mrpack` 默认按整合包声明的 Minecraft 和加载器新建实例。
 - 修复诊断证据和长模组标题超出容器的问题：长文本自动换行并限制行数，超出部分显示省略号；悬停可查看完整证据。
+- 同时提供 `MinePilot_1.11.6_portable.zip` 便携版（解压即用），安装包与便携包内容一致。
 
 ### 1.11.5
 
@@ -463,7 +465,7 @@ node tools\download-electron.js
 npm test
 ```
 
-测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
+测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/mods.test.js` 覆盖模组依赖树、推荐前置和整合包下载地址白名单；`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
 
 ## 发布构建
 
@@ -473,6 +475,7 @@ Windows 构建/发布工作流位于 [`.github/workflows/release.yml`](.github/w
 - 也可以在 Actions 页面手动触发，填写版本号并选择是否发布 Release；
 - 工作流会下载固定版本 Electron 33.2.0，执行 `package-win.js`、`package-desktop-installer.js`、`package-web.js` 和 `package-installer.js`；
 - 上传未签名安装包和校验文件作为 workflow artifacts；
+- 便携版不在 Actions 产物里：工作流只产出两个安装包，`MinePilot_<版本>_portable.zip` 需要本地执行 `node tools/package-win.js` 后把 `dist/MinePilot` 打包成 ZIP（排除 `data`），再手动上传到 Release；
 - SignPath 签名步骤已预留，但在申请通过前保持禁用。
 
 首次手动构建已通过（[run 41101445713](https://github.com/nxndai/MinePilot/actions/runs/41101445713)），产物包含两个安装包、两个 `.sha256` 和 Release 说明。安全问题和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
@@ -569,7 +572,7 @@ node tools\package-win.js
 | 启动器配置、日志、自动安装的 Java（独立应用便携版） | 程序目录下的 `data\` |
 | 启动器配置、日志、自动安装的 Java（独立应用安装版） | `%APPDATA%\MinePilot\`；若安装时检测到旧便携 data，则使用安装目录下的 `data\` |
 | 启动器配置、日志、自动安装的 Java（Edge 备用版） | 程序目录下的 `data\` |
-| Microsoft 账户令牌（`accounts.json`） | 启动器数据目录，本地明文保存，请勿分享 |
+| Microsoft 账户令牌（`accounts.json`） | 启动器数据目录；桌面版用系统安全存储加密，安全存储不可用时退回明文并提示 |
 | CurseForge API Key（`config.json`） | 启动器数据目录，本地明文保存，请勿分享 |
 | 本地皮肤/披风图库 | 启动器数据目录下的 `skins\`；索引为 `index.json`，图片为 PNG |
 | 自定义背景图 | 启动器数据目录下的 `theme\` |
@@ -585,6 +588,8 @@ node tools\package-win.js
 $env:MINEPILOT_HOME = "D:\MinePilotData"
 .\runtime\electron\electron.exe .
 ```
+
+> `MINEPILOT_HOME` 只改变启动器自己的数据目录（配置、账户、日志、缓存、自动安装的 Java）；游戏目录仍由「设置 → 游戏目录」决定，默认是 `%APPDATA%\.minecraft`。要完全隔离测试环境，两处都要改。
 
 Microsoft 登录默认使用公开的 OAuth 客户端 ID。如果你有自己的 Azure 应用注册，建议覆盖它（应用需支持「移动和桌面应用程序」公共客户端，并允许 `XboxLive.SignIn XboxLive.offline_access`）：
 
@@ -622,9 +627,9 @@ src/core/
   monitor.js             运行监控日志缓冲、状态与结束进程
   launcher.js            启动游戏（含版本隔离）
   versions.js            本地版本扫描
-  mods.js                Modrinth 模组搜索、依赖解析与安装
+  mods.js                Modrinth 模组 / 整合包搜索、依赖解析与安装
   modmanager.js          已安装模组列表与启用/禁用
-  modpack.js             .mrpack / ZIP 整合包导入导出
+  modpack.js             .mrpack / ZIP 整合包下载、导入导出
   curseforge.js          CurseForge 模组搜索、依赖解析与安装
 renderer/                HTML / CSS / 原生 JS 界面
   js/diagnostics.js      诊断页
@@ -641,7 +646,7 @@ runtime/electron/        内置 Electron 运行时
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
 - 不支持 1.7 以前需要特殊资源目录结构的极老版本（`legacy` 资源会尽量整理，但不保证）。
 - 本地皮肤/披风默认只在启动器内预览、管理和生成本地头像，不会自动注入离线游戏。登录 Microsoft 正版账户后可以在角色工坊主动上传皮肤到 Mojang 档案；离线账户不会写回 Mojang，原版游戏内固定显示 Steve/Alex，需要支持本地皮肤的模组。
-- 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；CurseForge 清单 ZIP 仅识别，不会自动下载。
+- 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。
 - “在线下载”默认关闭；首次安装版本、下载模组/整合包或自动安装 Java 前，需要到「设置 → 下载」手动开启。
