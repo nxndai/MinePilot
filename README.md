@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.11.6（2026-11-11 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.6（2026-11-12 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -644,13 +644,12 @@ runtime/electron/        内置 Electron 运行时
 - Microsoft 登录需要联网并打开浏览器输入一次性代码；如果公开客户端 ID 被微软调整，可通过 `MINEPILOT_MS_CLIENT_ID` 换用自己注册的 Azure 应用。
 - Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 管理」中安装（自动安装需要先开启“在线下载”）。
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
-- 不支持 1.7 以前需要特殊资源目录结构的极老版本（`legacy` 资源会尽量整理，但不保证）。
 - 本地皮肤/披风默认只在启动器内预览、管理和生成本地头像，不会自动注入离线游戏。登录 Microsoft 正版账户后可以在角色工坊主动上传皮肤到 Mojang 档案；离线账户不会写回 Mojang，原版游戏内固定显示 Steve/Alex，需要支持本地皮肤的模组。
 - 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。
 - “在线下载”默认关闭；首次安装版本、下载模组/整合包或自动安装 Java 前，需要到「设置 → 下载」手动开启。
-- 启动器不会修改游戏文件，也不会绕过正版验证。
+- 启动器不会绕过正版验证；启动游戏时只会按设置写入语言（`options.txt` 的 `lang`）、模组、配置等必要数据。
 - 离线账户启动时，游戏仍会尝试查询正版账户属性并得到 HTTP 401。启动器会把这段堆栈压缩成一行提示，不影响单人游戏；原始日志仍保存在日志文件中。
 - 首次启动会自动检测 Java；如果本机没有合适的 Java，会提示从 Eclipse Adoptium 下载 Temurin JRE（Windows 优先使用清华镜像，macOS/Linux 使用官方 tar.gz），也可以改选 Azul Zulu 或 Amazon Corretto。自动安装 Java 同样要求先开启“在线下载”，并强制校验 SHA256。
 - 崩溃诊断是基于日志关键词和退出代码的启发式分析，不能保证 100% 找到根因；导出报告中的日志已脱敏，但仍可能包含本地路径、用户名和模组列表。
