@@ -19,8 +19,10 @@
         $('#about-data').textContent = info.dataDir || '—';
         $('#about-data').title = info.dataDir || '';
       }
-      const versionNode = document.querySelector('.side-version');
-      if (versionNode) versionNode.textContent = `MinePilot v${info.version}`;
+      const versionNode = document.querySelector('#side-version-text') || document.querySelector('.side-version');
+      if (versionNode) {
+        versionNode.textContent = versionNode.id === 'side-version-text' ? `v${info.version}` : `MinePilot v${info.version}`;
+      }
     }
     if (settings && $('#about-game')) {
       $('#about-game').textContent = settings.gameDir;

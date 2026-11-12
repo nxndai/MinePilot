@@ -3,8 +3,9 @@
 /**
  * 启动器自身更新。
  *
- * 默认不连接任何“官方服务器”：没有配置更新源时明确返回“未配置”，
- * 只有用户或发布者填入 manifest / GitHub Releases 地址后才会联网。
+ * 默认更新源是本仓库的 GitHub Releases（无需配置即可检查更新）；
+ * 用户可以在「设置 → 启动器更新」里换成自己的 manifest / 仓库地址，
+ * 环境变量 MINEPILOT_UPDATE_URL 也可以覆盖默认值。
  *
  * manifest 格式（HTTPS）：
  * {
@@ -29,6 +30,9 @@ const logger = require('./logger');
 const platform = require('./platform');
 
 const MAX_DOWNLOAD_BYTES = 800 * 1024 * 1024;
+// 内置默认更新源：本仓库的 Releases。用户没有配置时直接用它，开箱即可检查更新。
+const OFFICIAL_REPO = 'https://github.com/nxndai/MinePilot';
+const OFFICIAL_RELEASES = `${OFFICIAL_REPO}/releases/latest`;
 let context = {
   currentVersion: '0.0.0',
   downloadsDir: null,
@@ -48,9 +52,18 @@ function configure(options = {}) {
   }
 }
 
-function feedUrl() {
+/** 用户显式配置的更新源（设置或环境变量）；为空表示使用内置官方源。 */
+function customFeed() {
   const configured = String(settings.get().updateFeedUrl || '').trim();
   return configured || String(process.env.MINEPILOT_UPDATE_URL || '').trim();
+}
+
+function feedUrl() {
+  return customFeed() || OFFICIAL_REPO;
+}
+
+function releasesUrl() {
+  return release && release.url ? release.url : OFFICIAL_RELEASES;
 }
 
 function isSafeFeed(raw) {
@@ -189,13 +202,16 @@ function normalizeRelease(raw) {
 
 function snapshot() {
   const feed = feedUrl();
-  const configured = Boolean(feed);
+  const custom = Boolean(customFeed());
   return {
     ok: !lastError,
-    configured,
-    status: !configured ? 'unconfigured' : (lastError ? 'error' : release ? (downloaded ? 'downloaded' : 'available') : 'idle'),
+    configured: true,
+    custom,
+    source: custom ? 'custom' : 'official',
+    status: lastError ? 'error' : release ? (downloaded ? 'downloaded' : 'available') : 'idle',
     currentVersion: normalizeVersion(context.currentVersion),
-    feedHost: configured ? safeHost(feed) : '',
+    feedHost: safeHost(feed),
+    releaseUrl: releasesUrl(),
     latestVersion: release ? release.version : '',
     available: Boolean(release && compareVersions(release.version, context.currentVersion) > 0),
     notes: release ? release.notes : '',
@@ -211,9 +227,9 @@ function snapshot() {
     downloadedBytes: downloaded ? downloaded.size : 0,
     checkedAt: lastCheck,
     error: lastError,
-    message: !configured
-      ? '还没有配置更新源。请在「设置 → 启动器更新」填写 HTTPS manifest 或 GitHub Releases 地址。'
-      : lastError || (release ? (compareVersions(release.version, context.currentVersion) > 0 ? `发现新版本 ${release.version}` : '当前已是最新版本') : '尚未检查更新'),
+    message: lastError || (release
+      ? (compareVersions(release.version, context.currentVersion) > 0 ? `发现新版本 ${release.version}` : '当前已是最新版本')
+      : '尚未检查更新'),
   };
 }
 

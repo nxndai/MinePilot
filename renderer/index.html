@@ -118,7 +118,11 @@
           <span class="status-dot warn"></span>
           <span id="java-stat-text">正在检测 Java…</span>
         </div>
-        <div class="side-version">MinePilot v1.11.1</div>
+        <button class="side-update" id="btn-side-update" title="检查更新并下载最新安装包">
+          <svg viewBox="0 0 16 16"><path d="M8 2v8"/><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/><path d="M3 13h10"/></svg>
+          <span id="side-update-text">检查更新</span>
+        </button>
+        <div class="side-version">MinePilot <span id="side-version-text">v1.11.6</span></div>
       </div>
     </aside>
 
@@ -1197,11 +1201,12 @@
           <div class="card setting-card wide">
             <h3>启动器更新</h3>
             <div class="setting-row">
-              <div class="setting-label">更新源<small>HTTPS manifest 或 GitHub Releases 地址；留空则不联网检查</small></div>
+              <div class="setting-label">更新源<small>留空则使用内置官方源（本仓库 Releases）</small></div>
               <div class="setting-control update-feed-control">
                 <input id="set-update-feed" class="input" type="url" placeholder="https://example.com/minepilot/latest.json" spellcheck="false">
                 <button class="btn small primary" id="btn-save-update-feed">保存</button>
                 <button class="btn small ghost" id="btn-check-update">检查更新</button>
+                <button class="btn small ghost" id="btn-open-release">打开发布页</button>
               </div>
             </div>
             <div class="setting-row">
@@ -1213,7 +1218,7 @@
             <div class="setting-row column-stat">
               <div class="setting-label">当前状态<small id="update-status-text">还没有检查更新</small></div>
               <div class="setting-control update-status-control">
-                <span class="update-version-chip" id="update-version-chip">v1.11.1</span>
+                <span class="update-version-chip" id="update-version-chip">v1.11.6</span>
                 <button class="btn small ghost hidden" id="btn-open-updates">下载目录</button>
               </div>
             </div>
@@ -1323,12 +1328,13 @@
             <div class="about-update-head">
               <div>
                 <h3>启动器更新</h3>
-                <p class="muted-sm" id="about-update-status">检查更新前不会连接任何服务器。</p>
+                <p class="muted-sm" id="about-update-status">更新源为本仓库 Releases，点击即可检查并下载最新安装包。</p>
               </div>
-              <span class="update-version-chip" id="about-update-version">v1.11.1</span>
+              <span class="update-version-chip" id="about-update-version">v1.11.6</span>
             </div>
             <div class="about-update-actions">
               <button class="btn small ghost" id="about-check-update">检查更新</button>
+              <button class="btn small ghost" id="about-open-release">打开发布页</button>
               <button class="btn small primary hidden" id="about-download-update">下载更新</button>
               <button class="btn small primary hidden" id="about-install-update">安装并重启</button>
               <button class="btn small ghost hidden" id="about-open-updates">打开下载目录</button>

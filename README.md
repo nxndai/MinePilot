@@ -46,7 +46,7 @@
 - 离线启动：离线 UUID（`MD5("OfflinePlayer:<name>")`）、JVM / 游戏参数替换、natives 解压、日志实时回显。
 - 崩溃诊断：游戏异常退出时自动读取退出代码、启动日志、Minecraft 日志、`crash-reports` 和 `hs_err_pid*.log`，用通俗语言给出按可信度排序的原因与处理建议；支持一键导出 ZIP 诊断报告（说明、JSON、系统/Java 信息、脱敏日志、模组清单），并保留最近 12 次异常记录。
 - 可行动诊断：内置已知崩溃模式库，包含 OptiFine 与 Fabric 冲突、重复 modid、加载器/架构不匹配、缺少 Fabric API、依赖不完整、内存不足和 Java 版本不匹配等；原因卡片会给出具体修复按钮，例如直接禁用 OptiFine、打开模组管理或 Java 设置、自动安装匹配的 Java。诊断页还可以一键生成**脱敏分享摘要**（隐藏令牌、用户名、本地路径和 IP）并复制，方便粘贴到 Issue 或聊天；公开分享前仍建议自己检查一遍。
-- 启动器更新：可配置 HTTPS manifest 或 GitHub Releases 更新源，手动/启动时检查新版本，显示更新说明，下载时校验 SHA256（源提供时），一键启动安装程序。未配置更新源时不会联网，也不会伪造“官方更新服务器”。
+- 启动器更新：默认检测**本仓库 Releases**，开箱即可检查更新，不需要先填更新源。侧栏底部的「更新」按钮发现新版本时会变成「更新到 vX.Y.Z」，点一下就会打开发布页并下载最新安装包（下载后校验 SHA256，再询问是否安装并重启）。也支持在「设置 → 启动器更新」填写自己的 HTTPS manifest 或 GitHub 仓库地址、或用 `MINEPILOT_UPDATE_URL` 覆盖默认源。
 - 插件系统：从本地 ZIP 或 HTTPS JSON 索引安装插件，启用/停用/移除；插件在 Web Worker 中运行，通过受限 API 注册命令/面板、读取公开状态与模组列表、监听下载事件，不能直接访问页面 DOM、账户令牌或启动器文件系统。联网默认关闭，只允许 `permissions.network` 声明的域名；插件仍可能上传你主动提供的数据，只应安装可信来源。
 - 跨平台：平台相关逻辑集中到 `src/core/platform.js`，支持 Windows / macOS / Linux 的元数据 OS 规则、natives 分类与扩展名、默认游戏目录、Java 发现/Adoptium 安装包（Windows ZIP、macOS/Linux tar.gz）、系统打开命令和 Unix 进程组结束。当前仓库的安装包构建脚本仍只针对 Windows；macOS/Linux 需要在对应系统安装 Node/Electron 后自行打包，详见“跨平台说明”。
 - Java 管理：自动发现已安装的 Java 并显示发行版、完整版本号、位数和路径；按游戏版本判断所需 Java 版本，默认选择满足要求的**最低版本**，避免过新的 Java 与旧模组冲突。设置页可以为每个实例单独指定 Java（覆盖自动匹配），手动添加或从列表隐藏 Java，并设置默认 Java。
@@ -339,7 +339,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 ## 启动器更新源
 
-更新源默认留空。留空时启动器不会连接任何更新服务器。可以在「设置 → 启动器更新」填写 HTTPS 地址，或设置环境变量 `MINEPILOT_UPDATE_URL`；也支持直接粘贴 GitHub 仓库地址，启动器会转换为 GitHub Releases API。
+默认更新源是本仓库 Releases（`https://github.com/nxndai/MinePilot`），所以装好就能检查更新。可以在「设置 → 启动器更新」填写 HTTPS 地址覆盖它，或设置环境变量 `MINEPILOT_UPDATE_URL`；**留空表示使用默认源**。也支持直接粘贴 GitHub 仓库地址，启动器会转换为 GitHub Releases API。联网只发生在启动时（可在设置里关掉自动检查）或你点击「检查更新 / 更新」时，不会后台定时轮询。
 
 manifest 示例：
 
@@ -361,7 +361,7 @@ manifest 示例：
 }
 ```
 
-`platform` 可使用 `windows` / `darwin` / `linux`，`arch` 使用 `x64` / `arm64` / `ia32`。GitHub Releases 会自动读取 `tag_name`、`body`、`assets` 和可用的 `digest`。下载地址必须是 HTTPS（本地调试可用 `127.0.0.1` / `localhost`）；提供 `sha256` 时会强制校验，不匹配会删除文件。启动器不会自动下载或安装更新，必须由用户点击。
+`platform` 可使用 `windows` / `darwin` / `linux`，`arch` 使用 `x64` / `arm64` / `ia32`。GitHub Releases 会自动读取 `tag_name`、`body`、`assets` 和可用的 `digest`。下载地址必须是 HTTPS（本地调试可用 `127.0.0.1` / `localhost`）；提供 `sha256` 时会强制校验，不匹配会删除文件。启动器不会在后台自动下载或静默安装更新：发现新版本后由你点击「更新」才会下载，安装前还会再确认一次。
 
 ## 插件
 
@@ -645,7 +645,7 @@ runtime/electron/        内置 Electron 运行时
 - Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 管理」中安装（自动安装需要先开启“在线下载”）。
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
 - 本地皮肤/披风默认只在启动器内预览、管理和生成本地头像，不会自动注入离线游戏。登录 Microsoft 正版账户后可以在角色工坊主动上传皮肤到 Mojang 档案；离线账户不会写回 Mojang，原版游戏内固定显示 Steve/Alex，需要支持本地皮肤的模组。
-- 自动更新需要自行配置 HTTPS 更新源；未配置时不会连接任何更新服务器。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
+- 更新源默认是本仓库 Releases；如果你的网络访问不了 GitHub，检查更新会失败，可以在「设置 → 启动器更新」换成自建 manifest。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。
 - “在线下载”默认关闭；首次安装版本、下载模组/整合包或自动安装 Java 前，需要到「设置 → 下载」手动开启。

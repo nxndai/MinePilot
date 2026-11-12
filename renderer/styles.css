@@ -373,6 +373,63 @@ html.web-mode .sidebar {
   letter-spacing: 0.3px;
 }
 
+/* 侧栏一键更新入口：平时是「检查更新」，发现新版本后高亮成「更新到 vX」。 */
+.side-update {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.side-update svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.side-update span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-update:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.side-update:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.side-update.has-update {
+  border-color: rgba(94, 165, 255, 0.45);
+  background: rgba(94, 165, 255, 0.12);
+  color: #a9cbff;
+  font-weight: 600;
+}
+
+.side-update.has-update:hover:not(:disabled) {
+  background: rgba(94, 165, 255, 0.2);
+  color: #cfe2ff;
+}
+
 /* ---------- 主区域 ---------- */
 .main {
   position: relative;
@@ -3634,7 +3691,8 @@ html[data-theme="light"] .monitor-log { background: #f5f8fd; color: #2c405d; }
 @media (max-width: 820px) {
   .app { grid-template-columns: 72px minmax(0, 1fr); }
   .sidebar { padding: 14px 8px; align-items: center; }
-  .profile-text, .nav-item span, .side-foot .side-stat, .side-version { display: none; }
+  .profile-text, .nav-item span, .side-foot .side-stat, .side-version, .side-update span { display: none; }
+  .side-update { width: 36px; height: 30px; justify-content: center; padding: 0; }
   .profile-card { padding: 7px; }
   .nav-item { width: 44px; justify-content: center; padding: 0; }
   .nav-item.active::before { left: -8px; }

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const fs = require('fs');
 const path = require('path');
@@ -6,6 +6,31 @@ const crypto = require('crypto');
 const logger = require('./logger');
 
 const USER_AGENT = 'MinePilot/1.10.0';
+
+let fetchImpl = null;
+
+/**
+ * 取一个 HTTP 客户端。
+ *
+ * 桌面版优先用 Electron 的网络栈：它信任系统根证书、跟随系统代理，
+ * 能穿过企业代理或网络加速器的 TLS 中间人；Node 自带的 fetch 只认内置 CA，
+ * 遇到这类环境会直接报 UNABLE_TO_VERIFY_LEAF_SIGNATURE。
+ * 测试和 Web 服务模式下没有 Electron，自动退回全局 fetch。
+ */
+function httpFetch() {
+  if (fetchImpl) return fetchImpl;
+  try {
+    const electron = require('electron');
+    if (electron && electron.net && typeof electron.net.fetch === 'function') {
+      fetchImpl = (url, options) => electron.net.fetch(url, options);
+      return fetchImpl;
+    }
+  } catch (err) {
+    /* 非 Electron 环境，用下面的全局 fetch */
+  }
+  fetchImpl = (url, options) => fetch(url, options);
+  return fetchImpl;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,7 +49,7 @@ async function fetchJson(url, options = {}) {
   for (let attempt = 0; attempt < retries; attempt += 1) {
     if (signal && signal.aborted) throw new Error('已取消');
     try {
-      const response = await fetch(url, {
+      const response = await httpFetch()(url, {
         signal: combineSignals(signal, timeout),
         headers: Object.assign({ 'User-Agent': USER_AGENT, Accept: 'application/json' }, headers),
       });
@@ -49,7 +74,7 @@ async function fetchText(url, options = {}) {
   let lastError = null;
   for (let attempt = 0; attempt < retries; attempt += 1) {
     try {
-      const response = await fetch(url, {
+      const response = await httpFetch()(url, {
         signal: combineSignals(signal, timeout),
         headers: Object.assign({ 'User-Agent': USER_AGENT }, headers),
       });
@@ -143,7 +168,7 @@ async function downloadFile(url, destination, options = {}) {
         : (signal || controller.signal);
       try {
         bumpIdle();
-        const response = await fetch(candidate, {
+        const response = await httpFetch()(candidate, {
           signal: combinedSignal,
           headers: Object.assign({ 'User-Agent': USER_AGENT }, headers),
         });

@@ -45,11 +45,30 @@
 
   function statusText(update) {
     if (!update) return '还没有检查更新';
-    if (!update.configured) return '未配置更新源，不会联网检查';
     if (update.error) return update.error;
-    if (update.available) return `发现新版本 ${update.latestVersion}`;
+    if (update.available) return `发现新版本 ${update.latestVersion}，点击「更新」即可下载`;
     if (update.latestVersion) return `已是最新版本（${update.currentVersion}）`;
     return '尚未检查更新';
+  }
+
+  /** 侧栏的更新入口：没有新版本时是「检查更新」，有新版本时变成「更新」。 */
+  function renderSideButton(value, versionText) {
+    const button = $('#btn-side-update');
+    if (!button) return;
+    const text = $('#side-update-text');
+    const available = Boolean(value.available);
+    button.classList.toggle('has-update', available);
+    button.disabled = state.checking || state.downloading;
+    button.title = available
+      ? `更新到 ${value.latestVersion}：打开发布页并下载最新安装包`
+      : '检查更新并下载最新安装包';
+    if (text) {
+      if (state.downloading) text.textContent = '正在下载更新…';
+      else if (available) text.textContent = `更新到 v${value.latestVersion}`;
+      else text.textContent = '检查更新';
+    }
+    const versionNode = $('#side-version-text');
+    if (versionNode) versionNode.textContent = versionText;
   }
 
   function render(update) {
@@ -91,8 +110,9 @@
     setButton('#btn-check-update', true, state.checking || state.downloading);
     setButton('#about-download-update', canDownload, !canDownload);
     setButton('#about-install-update', installVisible, state.downloading);
-    setButton('#about-open-updates', Boolean(value.configured) || downloaded, false);
-    setButton('#btn-open-updates', Boolean(value.configured) || downloaded, false);
+    setButton('#about-open-updates', downloaded, false);
+    setButton('#btn-open-updates', downloaded, false);
+    renderSideButton(value, versionText);
 
     if (downloaded) {
       if (aboutStatus) aboutStatus.textContent = isWeb() ? `已下载 ${value.latestVersion}，请到下载目录手动安装` : `已下载 ${value.latestVersion}，可以安装并重启`;
@@ -122,12 +142,10 @@
       const result = await MP.api.invoke('updater:check');
       if (!result) throw new Error('没有返回更新状态');
       render(result);
-      if (!result.configured) {
-        MP.toast('还没有配置更新源，请先在设置里填写更新地址', 'err', 6000);
-      } else if (result.error) {
+      if (result.error) {
         MP.toast(`检查更新失败：${result.error}`, 'err', 6500);
       } else if (result.available) {
-        MP.toast(`发现 MinePilot ${result.latestVersion}`, 'ok', 5000);
+        MP.toast(`发现 MinePilot ${result.latestVersion}，可点击「更新」下载安装包`, 'ok', 6000);
       } else {
         MP.toast('当前已是最新版本', 'ok');
       }
@@ -137,6 +155,52 @@
       state.checking = false;
       render();
     }
+  }
+
+  /** 在浏览器里打开发布页（Release 列表页）。 */
+  async function openRelease() {
+    const value = state.current || {};
+    const url = value.releaseUrl || 'https://github.com/nxndai/MinePilot/releases/latest';
+    await MP.openExternal(url);
+  }
+
+  /**
+   * 一键更新：检查 → 打开发布页 → 下载最新安装包 →（可选）启动安装程序。
+   * 不需要用户先配置更新源，默认走本仓库 Releases。
+   */
+  async function updateNow() {
+    if (state.busy || state.downloading) return;
+    const goView = $('.nav-item[data-view="about"]');
+    if (goView) goView.click();
+    if (!state.current || !state.current.available) {
+      await check();
+    }
+    const value = state.current || {};
+    if (!value.available) {
+      if (!value.error) MP.toast('当前已是最新版本', 'ok');
+      return;
+    }
+    await openRelease();
+    if (value.filePath) {
+      await offerInstall(value);
+      return;
+    }
+    await download();
+    const after = state.current || {};
+    if (after.filePath) await offerInstall(after);
+  }
+
+  async function offerInstall(value) {
+    if (isWeb()) {
+      MP.toast(`已下载 ${value.latestVersion}，请到下载目录手动安装`, 'ok', 6000);
+      return;
+    }
+    const confirmed = await MP.confirm({
+      title: '安装更新',
+      text: `MinePilot ${value.latestVersion || ''} 的安装程序已下载（来自本仓库 Releases）。现在启动安装程序并退出当前启动器？`,
+      confirmLabel: '安装并退出',
+    });
+    if (confirmed) await install();
   }
 
   async function download() {
@@ -170,7 +234,7 @@
     const update = state.current || {};
     const confirmed = await MP.confirm({
       title: '安装更新',
-      text: `将启动 MinePilot ${update.latestVersion || ''} 的安装程序，并退出当前启动器。安装包来自你配置的更新源，请确认来源可信。`,
+      text: `将启动 MinePilot ${update.latestVersion || ''} 的安装程序，并退出当前启动器。安装包来自更新源（默认本仓库 Releases），请确认来源可信。`,
       confirmLabel: '安装并退出',
     });
     if (!confirmed) return;
@@ -211,7 +275,7 @@
     try {
       const next = await MP.api.invoke('settings:update', { updateFeedUrl: value });
       MP.state.settings = next;
-      MP.toast(value ? '更新源已保存' : '已清空更新源，不会联网检查', 'ok');
+      MP.toast(value ? '更新源已保存' : '已清空自定义更新源，改用内置官方源', 'ok');
       if (value) await check();
       else await load();
     } catch (err) {
@@ -232,6 +296,13 @@
     MP.on('#btn-save-update-feed', 'click', saveFeed);
     MP.on('#btn-check-update', 'click', check);
     MP.on('#about-check-update', 'click', check);
+    MP.on('#btn-open-release', 'click', openRelease);
+    MP.on('#about-open-release', 'click', openRelease);
+    MP.on('#btn-side-update', 'click', () => {
+      const value = state.current || {};
+      if (value.available) updateNow();
+      else check();
+    });
     MP.on('#btn-open-updates', 'click', openDownloads);
     MP.on('#about-open-updates', 'click', openDownloads);
     MP.on('#about-download-update', 'click', download);
@@ -242,6 +313,7 @@
       if (!progress) return;
       state.downloading = true;
       setProgress(true, progress.percent || 0, progress.phase || '下载更新');
+      render();
     });
   }
 

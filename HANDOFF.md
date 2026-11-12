@@ -7,11 +7,12 @@
 - 项目路径：`C:\Users\these\Desktop\deeep`
 - 类型：Electron Minecraft 启动器（主进程 `main.js`，Web 预览服务 `server.js`，渲染层 `renderer/`）。
 - 主分支：`main`
-- 当前 HEAD：`9757ccb` `feat: add online modpack option and fix text overflow`，**已推送**。
+- 当前 HEAD：`18ae4ff` `docs: bump README update date and remove outdated limitations`，**已推送**。
 - 源码版本：`package.json` = **1.11.6**。
 - **`v1.11.6` 已打标签、已发布 Release**（6 个附件：Setup / Edge Setup / portable 各带 `.sha256`）。
-- CASI 状态：CI + Build Windows release 两个 workflow 均 success。
-- 工作区当前干净；`dist/`、`.test-data/` 是 gitignore 的构建产物。
+- **工作区有未发布的改动**：启动器更新按钮（默认官方源 + 一键更新），见第 10 节。
+- CI + Build Windows release 两个 workflow 均 success。
+- `dist/`、`.test-data/` 是 gitignore 的构建产物。
 
 历史：上一个版本 `v1.11.5`（`f08f06c`）。
 
@@ -36,13 +37,12 @@
 
 ### 未验证（下次补）
 
-- **UI 点击层没跑成**：本会话内 Electron 启动即崩（`dist` 里 33.2.0、`runtime` 里 20.18.0 都一样，
-  `--shot` 返回 `0x80000003`；清 `ELECTRON_RUN_AS_NODE`、加 `MINEPILOT_NO_SANDBOX/DISABLE_GPU/SINGLE_PROCESS`
-  均无效，无崩溃日志）。所以「点整合包标签 → 点下载整合包 → 版本弹窗 → 确认」这一段只有代码契约级核对。
-- 补测方法：在本机双击 `dist\MinePilot\MinePilot.exe`，走一遍
-  「模组 → 整合包 → 搜索 Fabulously Optimized → 下载整合包 → 选择版本 → 下载并导入」。
-- 自动化脚本留在 `C:\Users\these\AppData\Local\Temp\mp-e2e\ui-e2e.js`（CDP 驱动真实窗口，
-  需要 `--remote-debugging-port=9333`）；临时目录可能被系统清理，需要时按同思路重写。
+- **整合包 UI 点击层仍未补测**：「点整合包标签 → 下载整合包 → 版本弹窗 → 确认」只有代码契约级核对。
+  （之前以为 Electron 在本会话跑不起来，现在知道加 `--no-sandbox` 就能跑，见第 8 节。）
+- 补测方法：`.\dist\MinePilot\MinePilot.exe --no-sandbox --remote-debugging-port=9333`，
+  然后走一遍「模组 → 整合包 → 搜索 Fabulously Optimized → 下载整合包 → 选择版本 → 下载并导入」。
+- 自动化脚本：`C:\Users\these\AppData\Local\Temp\mp-e2e\ui-e2e.js`（整合包）和
+  `update-ui.js` / `update-download-test.js`（更新按钮）；临时目录可能被清理，需要时按同思路重写。
 
 ## 4. 发布流程（1.11.6 已跑通的顺序）
 
@@ -124,11 +124,40 @@ git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
   `gameDir` 指到临时目录，否则会往真实 `%APPDATA%\.minecraft` 里装实例（1.11.6 测试时踩过一次，
   已按 `.minepilot.json` 标记确认后删除，只留下 3.5MB Fabric 库缓存）。
 - DSH 环境默认带 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 前必须清除，否则报 `bad option: --no-sandbox`。
+- **本会话里启动打包版必须加 `--no-sandbox`**，否则启动即退出：
+  `.\dist\MinePilot\MinePilot.exe --no-sandbox --remote-debugging-port=9333`。
+  注意 `--remote-debugging-port` 只有和 `--no-sandbox` 一起用才不崩；配合 CDP 可以正常驱动 UI。
+  另外**不要给它设 `MINEPILOT_HOME` 到临时目录**——那样单实例锁会创建失败（`Lock file can not be created`）
+  然后直接退出；用默认 `%APPDATA%\MinePilot` 反而正常。
 - 真实用户数据在 `%APPDATA%\MinePilot` 和 `%APPDATA%\.minecraft`，不要覆盖或清理。
-- 本会话内 Electron 无法启动（见第 3 节），UI 验证需要在桌面手动做。
 
 ## 9. 下一步建议
 
-1. UI 点击层补测（见第 3 节），确认版本弹窗与进度条。
-2. 用户继续反馈「显示超出」时，先问清页面/元素；当前已覆盖诊断证据与模组标题。
-3. 下一版发布按第 4、5 节流程走，别忘了同步本地归档。
+1. 用户继续反馈「显示超出」时，先问清页面/元素；当前已覆盖诊断证据与模组标题。
+2. 下一版发布按第 4、5 节流程走，别忘了同步本地归档和 README。
+3. 更新按钮已可用；若用户要求，再补「启动时自动提示有新版本」的 toast。
+
+## 10. 启动器更新按钮（2026-11-12，未发布）
+
+需求：更新不能要求用户先填更新源；点一下要能跳到仓库并下载最新安装包。
+
+实现：
+
+- `src/core/updater.js`：`feedUrl()` 现在回落到内置 `OFFICIAL_REPO`（`https://github.com/nxndai/MinePilot`），
+  设置 `updateFeedUrl` 或 `MINEPILOT_UPDATE_URL` 仍可覆盖；`snapshot()` 新增 `custom` / `source` / `releaseUrl`，
+  `configured` 恒为 true（永远有源可用）。
+- `src/core/net.js`：新增 `httpFetch()`，桌面版优先用 **Electron `net.fetch`**（信任系统根证书与系统代理），
+  Node 环境回退到全局 `fetch`。**这是关键修复**：Steam++ 等加速器做 TLS 中间人时，Node 自带 fetch 会
+  报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`，换成 Electron 网络栈后测更新检查直接成功。
+  `fetchJson` / `fetchText` / `downloadFile` 三处都已改用它。
+- `renderer/index.html` + `renderer/js/updater.js` + `renderer/styles.css`：侧栏底部新增更新按钮，
+  没有新版本时是「检查更新」，发现新版本时高亮成「更新到 vX.Y.Z」；点击执行
+  检查 → 打开发布页 → 下载安装包（SHA256 校验）→ 询问是否安装并重启。
+  设置页和关于页各加「打开发布页」按钮。
+- `renderer/js/about.js`：修掉侧栏版本号被整体覆盖的问题（现在只更新 `#side-version-text`）。
+
+已验证（真实窗口 + CDP）：
+
+- 默认源检查更新成功，显示「已是最新版本（1.11.6）」，穿过加速器的 TLS 中间人也没问题。
+- 用本地假更新源（version 9.9.9）验证：侧栏变成「更新到 v9.9.9」、关于页显示版本与说明、
+  点下载后状态变「已下载 9.9.9，可以安装并重启」、`updates/` 收到安装包且 SHA256 匹配。
