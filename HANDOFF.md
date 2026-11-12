@@ -7,11 +7,10 @@
 - 项目路径：`C:\Users\these\Desktop\deeep`
 - 类型：Electron Minecraft 启动器（主进程 `main.js`，Web 预览服务 `server.js`，渲染层 `renderer/`）。
 - 主分支：`main`
-- 当前 HEAD：`18ae4ff` `docs: bump README update date and remove outdated limitations`，**已推送**。
-- 源码版本：`package.json` = **1.11.6**。
-- **`v1.11.6` 已打标签、已发布 Release**（6 个附件：Setup / Edge Setup / portable 各带 `.sha256`）。
-- **工作区有未发布的改动**：启动器更新按钮（默认官方源 + 一键更新），见第 10 节。
-- CI + Build Windows release 两个 workflow 均 success。
+- 当前 HEAD：`e3a8820` `chore: release 1.11.7`，**已推送**。
+- 源码版本：`package.json` = **1.11.7**。
+- **`v1.11.7` 已打标签、已发布 Release**（6 个附件，含便携包；1.11.7 新增启动器更新按钮）。
+- 上一个版本 `v1.11.6`（`9757ccb`）同样已发布；CI + Build Windows release 均 success。
 - `dist/`、`.test-data/` 是 gitignore 的构建产物。
 
 历史：上一个版本 `v1.11.5`（`f08f06c`）。
@@ -137,7 +136,7 @@ git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
 2. 下一版发布按第 4、5 节流程走，别忘了同步本地归档和 README。
 3. 更新按钮已可用；若用户要求，再补「启动时自动提示有新版本」的 toast。
 
-## 10. 启动器更新按钮（2026-11-12，未发布）
+## 10. 启动器更新按钮（2026-11-12，已随 1.11.7 发布）
 
 需求：更新不能要求用户先填更新源；点一下要能跳到仓库并下载最新安装包。
 
