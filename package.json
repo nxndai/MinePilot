@@ -19,7 +19,7 @@
     "start": "runtime\\electron\\electron.exe .",
     "shot": "runtime\\electron\\electron.exe . --shot",
     "package": "node tools/package-win.js",
-    "test": "node tests/language.test.js && node tests/i18n.test.js && node tests/memory.test.js && node tests/memory-clean.test.js && node tests/saves.test.js && node tests/mods.test.js && node tests/content.test.js && node tests/accounts.test.js && node tests/plugins.test.js && node tests/netplay.test.js && node tests/diagnostics.test.js && node tests/java.test.js && node tests/uninstall.test.js"
+    "test": "node tests/language.test.js && node tests/i18n.test.js && node tests/memory.test.js && node tests/memory-clean.test.js && node tests/saves.test.js && node tests/mods.test.js && node tests/content.test.js && node tests/accounts.test.js && node tests/plugins.test.js && node tests/netplay.test.js && node tests/diagnostics.test.js && node tests/java.test.js && node tests/uninstall.test.js && node tests/docs.test.js"
   },
   "devDependencies": {
     "electron": "33.2.0"

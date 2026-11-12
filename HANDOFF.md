@@ -119,6 +119,8 @@ git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
 ## 8. 测试与运行环境注意
 
 - `npm test` 必须用完整文件访问权限运行（`tests/*` 会写系统临时目录），沙箱下会 EPERM。
+- **改 README 要注意目录**：`tests/docs.test.js` 会检查「目录里的每条链接都能命中锚点」「每个二级章节都有
+  `<a id>` 锚点」「没有未被目录引用的锚点」。新增章节时记得同时加锚点和目录条目，否则 `npm test` 会失败。
 - **`MINEPILOT_HOME` 只隔离启动器数据，不隔离 `settings.gameDir`**。做整合包/版本测试时必须显式把
   `gameDir` 指到临时目录，否则会往真实 `%APPDATA%\.minecraft` 里装实例（1.11.6 测试时踩过一次，
   已按 `.minepilot.json` 标记确认后删除，只留下 3.5MB Fabric 库缓存）。

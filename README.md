@@ -1,9 +1,34 @@
-﻿# MinePilot
+# MinePilot
 
 **当前最新版本：v1.11.7（2026-11-12 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
+## 目录
+
+> README 比较长，点下面的条目可以直接跳到对应章节。
+
+- **上手**
+  - [快速开始](#quick-start) — 该下载哪个文件、怎么装、首次启动先做什么
+  - [安装包（Windows）](#installer) — 装到哪、快捷方式、升级与卸载会保留什么
+  - [独立应用版](#desktop-app) · [Edge 备用版](#edge-app) — 两种运行方式，以及窗口打不开时怎么办
+  - [直接运行源码](#run-from-source) — 拉下源码后用 Electron 启动
+- **功能说明**
+  - [功能总览](#features) — 版本 / 加载器 / 模组 / 整合包 / 存档 / 皮肤 / 诊断等全部能力
+  - [启动器更新源](#update-source) — 默认官方源、一键更新与自定义 manifest 格式
+  - [崩溃诊断报告](#diagnostics) — 报告里有哪些文件、会不会泄露隐私
+  - [插件](#plugins) · [插件市场索引](#plugin-market) — 插件能做什么、权限与索引格式
+  - [数据与目录](#data-dirs) · [目录结构](#project-layout) — 配置 / 账户 / 游戏文件都放在哪
+  - [跨平台说明](#cross-platform) — Windows / macOS / Linux 的支持范围
+- **其他**
+  - [常见问题（FAQ）](#faq) — 未知发布者、下载失败、模组不生效、报毒等
+  - [更新记录](#changelog) — 每个版本改了什么
+  - [已知限制](#limitations) — 当前做不到或需要注意的地方
+  - [安全声明](#security) — 校验方式与下载渠道
+  - [测试](#tests) · [发布构建](#release-build) · [打包为独立程序](#packaging)
+  - [应用图标](#icon) · [关于 PCL 的许可](#pcl-license) · [正版声明](#legal-notice) · [License](#license)
+
+<a id="security"></a>
 ## 安全声明
 
 - 本启动器开源（MIT），源码、构建脚本和打包工具全部随仓库提供，可公开审计。
@@ -11,6 +36,7 @@
 - Forge / NeoForge 安装器从官方 Maven 或所配置的镜像获取，并在运行前检查 JAR 结构；启动器更新在更新源提供摘要时校验 SHA256。
 - 请仅从本项目的 GitHub Releases 页面（https://github.com/nxndai/MinePilot/releases）下载。第三方网盘、群文件或转载站的安装包存在被篡改的风险；每个安装包旁均提供 `.sha256` 校验文件。
 
+<a id="quick-start"></a>
 ## 快速开始
 
 - 下载 `MinePilot_Setup_1.11.7.exe`。
@@ -27,6 +53,7 @@
 
 界面与交互参考了 [Plain Craft Launcher (PCL)](https://github.com/Meloong-Git/PCL) 的设计思路，但**没有复制或修改 PCL 的源代码**。PCL 的源码虽然公开，但采用自定义的《PCL 分发有限许可》，并不是 OSI 认证的开源许可证；本项目因此选择独立实现，详见文末的许可说明。
 
+<a id="features"></a>
 ## 功能
 
 - 版本管理：扫描 `versions/` 目录，识别原版与 `inheritsFrom` 继承式版本（Fabric / Forge / NeoForge / Quilt / OptiFine 等）。
@@ -134,6 +161,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 4. 写清启动器版本、安装方式（安装包/便携版）、Windows 版本、复现步骤和期望行为。诊断报告可能包含本地路径、用户名和模组列表，上传前请检查并删除敏感信息。
 5. 安全漏洞不要公开提交，请按 [SECURITY.md](SECURITY.md) 私下联系。
 
+<a id="changelog"></a>
 ## 更新记录
 
 ### 1.11.7
@@ -321,6 +349,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 - 启动 Explorer/浏览器时不再使用隐藏窗口标志，避免窗口被系统隐藏。
 - 三种方式都失败时，界面右下角会显示具体失败原因，不再静默失败。
 
+<a id="cross-platform"></a>
 ## 跨平台说明（Windows / macOS / Linux）
 
 平台差异已经集中到 `src/core/platform.js`：Mojang 的 `rules.os.name` / `arch`、旧版 natives classifier、Linux `.so` 与 macOS `.dylib` 解压、默认游戏目录、Java 可执行文件查找、Adoptium 的 tar.gz/zip 选择、`open` / `xdg-open` 和 Unix 进程组结束都在这里处理。
@@ -333,6 +362,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 如果要自行构建 macOS/Linux 版，需要在该系统准备 Node.js、npm 和 Electron 33，然后使用 Electron 打包工具（例如 `@electron/packager` 或 `electron-builder`）把仓库作为应用目录打包；macOS 还需要按自己的签名/公证流程处理。macOS 的 `.app` 内部不适合写便携数据，`main.js` 会自动改用 `~/Library/Application Support/MinePilot`；Windows/Linux 仍优先使用程序目录旁的 `data/`。Linux 运行 Adoptium 自动安装时需要系统提供 `tar`；macOS 默认游戏目录为 `~/Library/Application Support/minecraft`，Linux 为 `~/.minecraft`。
 
+<a id="diagnostics"></a>
 ## 崩溃诊断报告
 
 游戏异常退出后，主进程会自动分析并在「诊断」页展示结论；也可以从右上角导出 ZIP。报告包含：
@@ -345,6 +375,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 导出前会隐藏 `--accessToken`、`--clientId`、Bearer 令牌、JWT 和常见 token JSON 字段。仍请只把报告发送给你信任的人；报告可能包含本地路径、用户名和模组列表。诊断记录默认只保留最近 12 次，存放在数据目录的 `diagnostics/` 下。
 
+<a id="update-source"></a>
 ## 启动器更新源
 
 默认更新源是本仓库 Releases（`https://github.com/nxndai/MinePilot`），所以装好就能检查更新。可以在「设置 → 启动器更新」填写 HTTPS 地址覆盖它，或设置环境变量 `MINEPILOT_UPDATE_URL`；**留空表示使用默认源**。也支持直接粘贴 GitHub 仓库地址，启动器会转换为 GitHub Releases API。联网只发生在启动时（可在设置里关掉自动检查）或你点击「检查更新 / 更新」时，不会后台定时轮询。
@@ -371,6 +402,7 @@ manifest 示例：
 
 `platform` 可使用 `windows` / `darwin` / `linux`，`arch` 使用 `x64` / `arm64` / `ia32`。GitHub Releases 会自动读取 `tag_name`、`body`、`assets` 和可用的 `digest`。下载地址必须是 HTTPS（本地调试可用 `127.0.0.1` / `localhost`）；提供 `sha256` 时会强制校验，不匹配会删除文件。启动器不会在后台自动下载或静默安装更新：发现新版本后由你点击「更新」才会下载，安装前还会再确认一次。
 
+<a id="plugins"></a>
 ## 插件
 
 插件是本地 ZIP，解压后目录结构如下：
@@ -421,6 +453,7 @@ minepilot.on('download:completed', (event) => {
 
 可用 API：`toast(text, tone)`、`registerCommand(id, title, handler)`、`registerPanel(id, title, text)`、`getMods(targetVersionId)`、`getContent(targetVersionId, type)`、`on(event, handler)`（`settings:changed`、`launch:exit`、`crash:detected`、`download:started`、`download:progress`、`download:completed`）和只读 `invoke(channel, args)`（`app:info`、`settings:get`、`versions:list`、`monitor:state`、`diagnostics:latest`、`java:detect`、`mods:list`、`content:list`）。插件命令会出现在「设置 → 插件」；面板显示为纯文本。
 
+<a id="plugin-market"></a>
 ### 插件市场索引
 
 「设置 → 插件 → 插件市场」默认读取 [`docs/plugin-index.json`](docs/plugin-index.json)，也可以填写任意 HTTPS JSON 地址。格式：
@@ -446,6 +479,7 @@ minepilot.on('download:completed', (event) => {
 
 `download` 必须是 HTTPS；`sha256` 必填，安装前会校验，缺失或校验失败会拒绝安装。索引只读取 `plugins` 数组，单次最多 200 条；无效条目会被跳过并在界面提示。下载后还会核对插件包内 `plugin.json` 的 `id` 与 `permissions.network`，与索引不一致时拒绝安装，避免“展示 A、实际 B”。默认索引中的示例插件源码在 `docs/plugins/`，可以解压后自行审计。
 
+<a id="run-from-source"></a>
 ## 直接运行
 
 源码仓库不包含体积较大的 Electron 运行时（`runtime/` 已在 `.gitignore` 中排除）。首次从源码运行需要 Node.js 22+，并执行一次：
@@ -467,6 +501,7 @@ node tools\download-electron.js
 
 > 如果从受限的终端/沙箱环境启动，Chromium 可能无法创建子进程。请在普通 Windows 桌面环境中运行。
 
+<a id="tests"></a>
 ## 测试
 
 ```powershell
@@ -475,6 +510,7 @@ npm test
 
 测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/mods.test.js` 覆盖模组依赖树、推荐前置和整合包下载地址白名单；`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
 
+<a id="release-build"></a>
 ## 发布构建
 
 Windows 构建/发布工作流位于 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
@@ -488,6 +524,7 @@ Windows 构建/发布工作流位于 [`.github/workflows/release.yml`](.github/w
 
 首次手动构建已通过（[run 41101445713](https://github.com/nxndai/MinePilot/actions/runs/41101445713)），产物包含两个安装包、两个 `.sha256` 和 Release 说明。安全问题和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
 
+<a id="desktop-app"></a>
 ## 独立应用版（默认）
 
 打包后的 `dist/MinePilot/MinePilot.exe` 是独立应用主程序：
@@ -510,6 +547,7 @@ node tools\package-desktop-installer.js
 .\dist\MinePilot\MinePilot.exe --no-sandbox
 ```
 
+<a id="edge-app"></a>
 ## Edge 应用窗口版（备用）
 
 部分电脑的安全软件会拦截未签名的 Electron/Chromium，导致 `MinePilot.exe` 双击后没有任何窗口。如果遇到这种情况，请使用：
@@ -522,6 +560,7 @@ node tools\package-desktop-installer.js
 
 如果安全软件连这个引导程序也拦截，可以双击同目录的 `启动_MinePilot.cmd`。这个脚本只调用系统自带的 Node 运行时和 Edge。
 
+<a id="installer"></a>
 ## 安装包（Windows）
 
 独立应用版安装程序：
@@ -542,6 +581,7 @@ Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输�
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
+<a id="icon"></a>
 ## 应用图标
 
 应用图标是独立绘制的“草方块 + 蓝色启动面”，不包含 PCL 或 Mojang 的素材。图标源文件由 `tools/make-icon.py` 生成：
@@ -558,6 +598,7 @@ python tools\make-icon.py
 
 构建 Edge 版时，`tools/package-web.js` 会把 `assets/MinePilot.ico` 复制到发布目录，并通过 `csc /win32icon` 嵌入 `MinePilot.exe`；安装程序也会用它作为安装包图标和快捷方式图标。
 
+<a id="packaging"></a>
 ## 打包为独立程序
 
 ```powershell
@@ -573,6 +614,7 @@ node tools\package-win.js
 
 再运行 `node tools\package-desktop-installer.js` 生成独立应用安装包。Edge 版安装包使用 `node tools\package-installer.js`，两者不要混用。
 
+<a id="data-dirs"></a>
 ## 数据与目录
 
 | 内容 | 默认位置 |
@@ -607,6 +649,7 @@ $env:MINEPILOT_MS_CLIENT_ID = "你的 Azure 应用客户端 ID"
 
 登录令牌保存在数据目录的 `accounts.json` 中，仅用于本机启动游戏；退出 Microsoft 账户会删除该文件中的令牌。请像保护密码一样保护这个文件。
 
+<a id="project-layout"></a>
 ## 目录结构
 
 ```
@@ -647,6 +690,7 @@ tools/                   下载 Electron、打包桌面版 / Edge 版 / 安装�
 runtime/electron/        内置 Electron 运行时
 ```
 
+<a id="limitations"></a>
 ## 已知限制
 
 - Microsoft 登录需要联网并打开浏览器输入一次性代码；如果公开客户端 ID 被微软调整，可通过 `MINEPILOT_MS_CLIENT_ID` 换用自己注册的 Azure 应用。
@@ -664,6 +708,7 @@ runtime/electron/        内置 Electron 运行时
 - 插件在 Web Worker 中运行，不能直接操作页面或读取账户令牌，但仍可自行联网。请只安装可信来源的插件；插件作者和插件行为由你自行判断。
 - macOS / Linux 的平台代码已经实现，但当前仓库只提供 Windows 安装包构建脚本，且本次发布没有在真实 macOS/Linux 机器上完成端到端验证。需要在这些系统上自行安装 Node/Electron 并打包。
 
+<a id="pcl-license"></a>
 ## 关于 PCL 的许可
 
 PCL 的源码发布在 <https://github.com/Meloong-Git/PCL>，采用作者自定的《PCL 分发有限许可》与《PCL 存储库合理使用指南》，**不是** MIT / GPL 之类的开源许可证。该许可对「大量使用」有额外要求，包括但不限于：
@@ -676,10 +721,12 @@ PCL 的源码发布在 <https://github.com/Meloong-Git/PCL>，采用作者自定
 
 因此本项目**没有**复制 PCL 代码，而是按 PCL 的使用习惯重新实现。界面中保留了对 PCL 的署名与链接；如果你要基于 PCL 源码二次开发，请先阅读其仓库中的 `LICENCE` 并遵守对应条款。
 
+<a id="legal-notice"></a>
 ## 正版声明
 
 Minecraft 是 Mojang Studios 的商标。本项目与 Mojang、Microsoft、PCL 作者均无隶属关系。本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。请购买正版 Minecraft：<https://www.minecraft.net/zh-hans/store/minecraft-java-bedrock-edition-pc>。
 
+<a id="license"></a>
 ## License
 
 本项目自身代码以 MIT 许可证发布，详见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。Minecraft 游戏文件、Mojang 资源与 PCL 相关素材不在本项目的许可范围内。
