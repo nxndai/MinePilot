@@ -7,10 +7,10 @@
 - 项目路径：`C:\Users\these\Desktop\deeep`
 - 类型：Electron Minecraft 启动器（主进程 `main.js`，Web 预览服务 `server.js`，渲染层 `renderer/`）。
 - 主分支：`main`
-- 当前 HEAD：`e3a8820` `chore: release 1.11.7`，**已推送**。
-- 源码版本：`package.json` = **1.11.7**。
-- **`v1.11.7` 已打标签、已发布 Release**（6 个附件，含便携包；1.11.7 新增启动器更新按钮）。
-- 上一个版本 `v1.11.6`（`9757ccb`）同样已发布；CI + Build Windows release 均 success。
+- 当前 HEAD：`1aef5ad` `chore: release 1.11.8`，**已推送**。
+- 源码版本：`package.json` = **1.11.8**。
+- **`v1.11.8` 已打标签、已发布 Release**（6 个附件，含便携包；新增联机端口检测/导入导出/游戏联动、账户详情与脱敏导出）。
+- 上一个版本 `v1.11.7`（`e3a8820`）同样已发布；CI + Build Windows release 均 success。
 - `dist/`、`.test-data/` 是 gitignore 的构建产物。
 
 历史：上一个版本 `v1.11.5`（`f08f06c`）。
@@ -162,3 +162,27 @@ git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
 - 默认源检查更新成功，显示「已是最新版本（1.11.6）」，穿过加速器的 TLS 中间人也没问题。
 - 用本地假更新源（version 9.9.9）验证：侧栏变成「更新到 v9.9.9」、关于页显示版本与说明、
   点下载后状态变「已下载 9.9.9，可以安装并重启」、`updates/` 收到安装包且 SHA256 匹配。
+## 11. 1.11.8：联机增强与账户详情（已发布）
+
+### 联机（`src/core/netplay.js` + `renderer/js/netplay.js`）
+
+- `checkPorts({ port })`：TCP 探测 `127.0.0.1` 与各网卡端口是否监听，返回 `anyListening` / `privateOnly` / `advice`。
+  **只检测本机**，不做外网探测（外网可达性依赖端口映射，无法在本机判断）。
+- `buildShareText(profile, context)`：生成含启动命令与局域网地址的可复制文本，带空格的参数会加引号。
+- `exportProfiles` / `importProfiles`：**两端必须用同一套 id 正则** `^[a-zA-Z0-9._-]{1,80}$`，
+  否则会出现"能导出但导入被静默丢弃"（1.11.8 修过一次，别改回去）。
+- 游戏联动：`settings.netplayAutoStartGame`（开房后启动实例）、`settings.netplayStopOnGameExit`
+  （收到 `launch:exit` 时停掉联机进程）。新增的 settings 字段要同时加进 `ALLOWED_KEYS`、`defaults()`
+  和 `sanitize` 的布尔分支。
+
+### 账户（`main.js` 里的两个 IPC）
+
+- `auth:profile-detail`：合并 `accounts.summary()` + `skinmanager.list()`；
+  **没有账户记录时会用 `settings.offlineName` + `auth.offlineUuid()` 兜底**，否则详情整列是「—」。
+- `auth:export-clean`：脱敏导出，只输出账户标识和 `curseforgeApiKey` / `gistToken` / `updateFeedUrl`
+  的布尔值，不写任何令牌与密钥明文。
+
+### 验证
+
+- `tests/netplay.test.js` 已扩到覆盖导出/导入往返、非法 id 过滤、缺可执行文件跳过、分享文本引号、端口越界回落。
+- 真机窗口（`--no-sandbox --remote-debugging-port=9333` + CDP）：端口检测、账户详情、复制联机信息三处均通过。
