@@ -1,7 +1,7 @@
 {
   "name": "minepilot",
   "productName": "MinePilot",
-  "version": "1.11.8",
+  "version": "1.11.9",
   "description": "MinePilot — 一款轻量的 Minecraft 启动器（第三方独立实现）",
   "main": "main.js",
   "author": "MinePilot Contributors",
