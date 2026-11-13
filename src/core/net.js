@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const fs = require('fs');
 const path = require('path');
@@ -127,6 +127,8 @@ async function downloadFile(url, destination, options = {}) {
     retries = 3,
     headers = {},
     fallbackUrl = null,
+    idleTimeout = 15000,
+    resume = false,
   } = options;
 
   fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -144,6 +146,11 @@ async function downloadFile(url, destination, options = {}) {
   const candidates = [url];
   if (fallbackUrl && fallbackUrl !== url) candidates.push(fallbackUrl);
 
+  const temp = `${destination}.part`;
+  if (!resume) {
+    try { fs.rmSync(temp, { force: true }); } catch (err) { /* ignore */ }
+  }
+
   let lastError = null;
   for (let c = 0; c < candidates.length; c += 1) {
     const candidate = candidates[c];
@@ -151,7 +158,6 @@ async function downloadFile(url, destination, options = {}) {
     const attempts = c === 0 ? (fallbackUrl ? 1 : retries) : retries;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       if (signal && signal.aborted) throw abortError();
-      const temp = `${destination}.part`;
       let fd = null;
       let idleTimer = null;
       let idleTimedOut = false;
@@ -161,17 +167,29 @@ async function downloadFile(url, destination, options = {}) {
         idleTimer = setTimeout(() => {
           idleTimedOut = true;
           controller.abort();
-        }, 15000);
+        }, idleTimeout);
       };
       const combinedSignal = signal && typeof AbortSignal.any === 'function'
         ? AbortSignal.any([signal, controller.signal])
         : (signal || controller.signal);
+      // 断点续传：已有 .part 就带上 Range，从断点续上，避免大文件重下。
+      let startAt = 0;
+      if (resume) {
+        try { startAt = fs.existsSync(temp) ? fs.statSync(temp).size : 0; } catch (err) { startAt = 0; }
+      }
       try {
         bumpIdle();
+        const requestHeaders = Object.assign({ 'User-Agent': USER_AGENT }, headers);
+        if (startAt > 0) requestHeaders.Range = `bytes=${startAt}-`;
         const response = await httpFetch()(candidate, {
           signal: combinedSignal,
-          headers: Object.assign({ 'User-Agent': USER_AGENT }, headers),
+          headers: requestHeaders,
         });
+        if (startAt > 0 && response.status === 200) {
+          // 服务器不支持断点续传，丢掉旧分片从头来。
+          startAt = 0;
+          try { fs.rmSync(temp, { force: true }); } catch (e) { /* ignore */ }
+        }
         if (!response.ok) {
           if (response.body) {
             try { await response.body.cancel(); } catch (e) { /* ignore */ }
@@ -183,8 +201,8 @@ async function downloadFile(url, destination, options = {}) {
         if (!response.body) throw new Error('响应为空');
 
         const reader = response.body.getReader();
-        const hash = sha1 ? crypto.createHash('sha1') : null;
-        fd = fs.openSync(temp, 'w');
+        const hash = sha1 && startAt === 0 ? crypto.createHash('sha1') : null;
+        fd = fs.openSync(temp, startAt > 0 ? 'a' : 'w');
         let written = 0;
         for (;;) {
           const { done, value } = await reader.read();
@@ -200,18 +218,26 @@ async function downloadFile(url, destination, options = {}) {
         fs.closeSync(fd);
         fd = null;
 
-        if (hash) {
-          const digest = hash.digest('hex');
-          if (digest !== sha1) throw new Error('SHA1 校验失败，文件可能已损坏');
+        const size = fs.statSync(temp).size;
+        if (sha1) {
+          // 续传时无法继续累加哈希，改为对整份文件重新计算。
+          const digest = startAt > 0 ? await sha1File(temp) : hash.digest('hex');
+          if (digest !== sha1) {
+            try { fs.rmSync(temp, { force: true }); } catch (e) { /* ignore */ }
+            throw new Error('SHA1 校验失败，文件可能已损坏');
+          }
         }
         fs.rmSync(destination, { force: true });
         fs.renameSync(temp, destination);
-        return { skipped: false, size: written, source: candidate };
+        return { skipped: false, size, source: candidate, resumed: startAt > 0 };
       } catch (err) {
         if (fd !== null) {
           try { fs.closeSync(fd); } catch (e) { /* ignore */ }
         }
-        try { fs.unlinkSync(temp); } catch (e) { /* ignore */ }
+        // 续传模式保留分片，下次从断点继续；普通下载失败则清理。
+        if (!resume) {
+          try { fs.unlinkSync(temp); } catch (e) { /* ignore */ }
+        }
         if (signal && signal.aborted) throw abortError();
         lastError = idleTimedOut ? new Error('下载超时，连接长时间没有数据') : err;
         if (attempt < attempts - 1) await sleep(700 * (attempt + 1));
@@ -219,6 +245,9 @@ async function downloadFile(url, destination, options = {}) {
         if (idleTimer) clearTimeout(idleTimer);
       }
     }
+  }
+  if (resume) {
+    try { fs.rmSync(temp, { force: true }); } catch (err) { /* ignore */ }
   }
   throw new Error(`下载失败：${shortUrl(url)}（${lastError ? lastError.message : '未知错误'}）`);
 }

@@ -33,6 +33,9 @@ const MAX_DOWNLOAD_BYTES = 800 * 1024 * 1024;
 // 内置默认更新源：本仓库的 Releases。用户没有配置时直接用它，开箱即可检查更新。
 const OFFICIAL_REPO = 'https://github.com/nxndai/MinePilot';
 const OFFICIAL_RELEASES = `${OFFICIAL_REPO}/releases/latest`;
+// GitHub 发布资源在部分网络下拿不到数据时的备用下载节点。
+// 注意：镜像只改传输路径，下载完成仍会用 Release 提供的 SHA256 校验。
+const UPDATE_MIRRORS = ['https://ghfast.top/', 'https://ghproxy.net/'];
 let context = {
   currentVersion: '0.0.0',
   downloadsDir: null,
@@ -64,6 +67,27 @@ function feedUrl() {
 
 function releasesUrl() {
   return release && release.url ? release.url : OFFICIAL_RELEASES;
+}
+
+/**
+ * 给出该资源可以尝试的下载地址：原始 URL + 镜像。
+ * 只对 GitHub Releases 的资源做镜像，自定义 manifest 的地址原样使用。
+ */
+function updateSources(url) {
+  const list = [url];
+  try {
+    const parsed = new URL(url);
+    if (/^github\.com$/i.test(parsed.hostname) && /\/releases\/download\//.test(parsed.pathname)) {
+      const custom = String(process.env.MINEPILOT_UPDATE_MIRROR || '').trim();
+      const mirrors = custom ? [custom] : UPDATE_MIRRORS;
+      for (const mirror of mirrors) {
+        const base = String(mirror || '').trim().replace(/\/+$/, '');
+        if (!isSafeUrl(base) || base === url) continue;
+        list.push(`${base}/${url}`);
+      }
+    }
+  } catch (err) { /* URL 不合法就只用原地址 */ }
+  return list;
 }
 
 function isSafeFeed(raw) {
@@ -311,25 +335,62 @@ async function download() {
   active = { controller, destination, version: release.version };
   try {
     emitProgress({ phase: '准备下载更新', percent: 0, receivedBytes: 0, totalBytes: asset.size || 0 });
-    await net.downloadFile(asset.url, destination, {
-      signal: controller.signal,
-      retries: 2,
-      onBytes: (count) => {
-        received += count;
-        if (received > MAX_DOWNLOAD_BYTES) {
-          tooLarge = true;
-          controller.abort();
-          return;
+    // GitHub 的发布资源会 302 到 release-assets.githubusercontent.com，
+    // 这个域名在部分网络下连得上却收不到任何数据。失败时自动换镜像重试，
+    // 下载完仍然强制校验 SHA256，镜像篡改会被发现。
+    const candidates = updateSources(asset.url);
+    let lastError = null;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index];
+      try {
+        if (index > 0) {
+          const host = safeHost(candidate);
+          emitProgress({
+            phase: `改用镜像下载（${host}）`,
+            percent: 1,
+            receivedBytes: 0,
+            totalBytes: asset.size || 0,
+          });
+          logger.info('更新下载换源:', host);
         }
-        const total = asset.size || 0;
-        emitProgress({
-          phase: `下载 MinePilot ${release.version}`,
-          percent: total ? Math.min(99, Math.floor((received / total) * 100)) : 35,
-          receivedBytes: received,
-          totalBytes: total,
+        const partFile = `${destination}.part`;
+        try {
+          received = fs.existsSync(partFile) ? fs.statSync(partFile).size : 0;
+        } catch (err) {
+          received = 0;
+        }
+        await net.downloadFile(candidate, destination, {
+          signal: controller.signal,
+          // 主地址在部分网络下会一直不给数据，少等一会儿就切镜像；
+          // 镜像可能有抖动，给更多重试（配合断点续传不会从头再来）。
+          retries: index === 0 ? 1 : 3,
+          idleTimeout: index === 0 ? 20000 : 30000,
+          resume: true,
+          onBytes: (count) => {
+            received += count;
+            if (received > MAX_DOWNLOAD_BYTES) {
+              tooLarge = true;
+              controller.abort();
+              return;
+            }
+            const total = asset.size || 0;
+            emitProgress({
+              phase: `下载 MinePilot ${release.version}`,
+              percent: total ? Math.min(99, Math.floor((received / total) * 100)) : 35,
+              receivedBytes: received,
+              totalBytes: total,
+            });
+          },
         });
-      },
-    });
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (tooLarge || controller.signal.aborted) throw err;
+        logger.warn(`更新下载失败（${safeHost(candidate)}）:`, err.message);
+      }
+    }
+    if (lastError) throw lastError;
     const stat = fs.statSync(destination);
     if (stat.size <= 0) throw new Error('下载完成的安装包为空');
     if (stat.size > MAX_DOWNLOAD_BYTES) throw new Error('安装包体积异常，已拒绝使用');
