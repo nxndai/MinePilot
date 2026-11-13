@@ -7,10 +7,10 @@
 - 项目路径：`C:\Users\these\Desktop\deeep`
 - 类型：Electron Minecraft 启动器（主进程 `main.js`，Web 预览服务 `server.js`，渲染层 `renderer/`）。
 - 主分支：`main`
-- 当前 HEAD：`1aef5ad` `chore: release 1.11.8`，**已推送**。
-- 源码版本：`package.json` = **1.11.8**。
-- **`v1.11.8` 已打标签、已发布 Release**（6 个附件，含便携包；新增联机端口检测/导入导出/游戏联动、账户详情与脱敏导出）。
-- 上一个版本 `v1.11.7`（`e3a8820`）同样已发布；CI + Build Windows release 均 success。
+- 当前 HEAD：`ee03eb3` `chore: release 1.11.9`，**已推送**。
+- 源码版本：`package.json` = **1.11.9**。
+- **`v1.11.9` 已打标签、已发布 Release**（6 个附件，含便携包；修复更新包下载失败，改为镜像回退 + 断点续传）。
+- 上一个版本 `v1.11.8`（`1aef5ad`）同样已发布；CI + Build Windows release 均 success。
 - `dist/`、`.test-data/` 是 gitignore 的构建产物。
 
 历史：上一个版本 `v1.11.5`（`f08f06c`）。
@@ -186,3 +186,37 @@ git tag -a v1.11.6 -m "MinePilot 1.11.6"; git push origin v1.11.6
 
 - `tests/netplay.test.js` 已扩到覆盖导出/导入往返、非法 id 过滤、缺可执行文件跳过、分享文本引号、端口越界回落。
 - 真机窗口（`--no-sandbox --remote-debugging-port=9333` + CDP）：端口检测、账户详情、复制联机信息三处均通过。
+
+## 12. 1.11.9：修复「检测到更新但下载失败」（已发布）
+
+### 根因（已实测确认）
+
+`github.com/.../releases/download/...` 只是 302，真正的字节来自
+**`release-assets.githubusercontent.com`**。这个域名在本机连得上 TCP，但 TLS 之后一个字节都收不到
+（`curl -L` 25 秒 0 字节）；而检查更新走 `api.github.com` 是通的 —— 所以表现就是"能检测到、下载必然失败"。
+加速器（Steam++）只接管了 `github.com` / `api.github.com`，没有接管这个 CDN 域名。
+
+### 修法（`src/core/updater.js` + `src/core/net.js`）
+
+- `updateSources(url)`：GitHub Release 资源额外给两个镜像候选 `https://ghfast.top/`、`https://ghproxy.net/`，
+  可用 `MINEPILOT_UPDATE_MIRROR` 覆盖。实测 `ghfast.top` 约 670KB/s；`gh-proxy.com` / `gh.llcks.cc` /
+  `ghproxy.cc` 等要么 reset、要么证书错误，别加进列表。
+- 下载循环：主地址 `retries: 1` + 20s 空闲超时（没数据就换源），镜像 30s 空闲超时 + 3 次重试。
+- `net.downloadFile` 新增 `resume` 选项：已有 `.part` 就带 `Range: bytes=N-` 续传；服务器忽略 Range
+  （返回 200）时自动从头重写；续传模式下失败**不删分片**，由后续重试接着下；全部失败才清理。
+- 续传时 SHA1 无法继续累加，改为完成后对整份文件重新计算；更新包仍然强制校验 Release 的 SHA256。
+
+### 实测
+
+真实 113MB 安装包：修复前每次都失败；修复后「github.com 90s 无数据 → 切 ghfast.top → 断续重试 →
+约 7 分钟完成 → SHA256 `a29065fb…` 与 Release 一致」。
+
+### 踩坑：PowerShell 写文件会带 BOM
+
+用 `Set-Content -Encoding UTF8` 改过 `package.json` 后，文件开头多了 BOM，`JSON.parse` 直接报
+`Unexpected token ''`，导致 `package-desktop-installer.js` 失败、`dist/MinePilot/resources/app/package.json`
+也跟着带 BOM（打包出来的应用会起不来）。**改 JSON/Markdown 后要检查并去掉 BOM**：
+
+```powershell
+node -e "const fs=require('fs');const b=fs.readFileSync('package.json');if(b[0]===0xEF)fs.writeFileSync('package.json',b.slice(3))"
+```
