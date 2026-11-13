@@ -213,6 +213,7 @@
               <div class="account-name" id="account-name">Steve</div>
               <div class="account-mode"><span class="status-dot" id="account-mode-dot"></span><span id="account-mode">离线账户 · 仅本地</span></div>
               <button class="btn small ghost" id="btn-edit-account">管理账户</button>
+              <button class="btn small ghost" id="btn-account-detail">账户详情</button>
             </div>
             <div class="card stat-card">
               <div class="stat-row"><span>已安装版本</span><strong id="stat-versions">0</strong></div>
@@ -650,6 +651,7 @@
                 <button class="btn primary" id="btn-netplay-start">一键开房间</button>
                 <button class="btn ghost" id="btn-netplay-stop">停止</button>
                 <button class="btn ghost" id="btn-netplay-copy">复制地址</button>
+                <button class="btn ghost" id="btn-netplay-share">复制联机信息</button>
               </div>
             </div>
             <div class="netplay-status-line">
@@ -658,6 +660,21 @@
             </div>
             <div class="netplay-addresses" id="netplay-addresses"></div>
             <div class="netplay-log" id="netplay-log" aria-live="polite"></div>
+          </div>
+
+          <div class="card">
+            <div class="installed-head">
+              <div>
+                <div class="installed-title">端口与连通性检测</div>
+                <div class="installed-sub">确认游戏端口是否在本机监听；只检测本机，不会扫描外网。</div>
+              </div>
+            </div>
+            <div class="netplay-port-row">
+              <label class="field"><span>端口</span><input id="netplay-port" class="input" type="number" min="1" max="65535" value="25565" spellcheck="false"></label>
+              <button class="btn primary small" id="btn-netplay-check-port">检测端口</button>
+              <span class="muted-sm" id="netplay-port-hint">先在游戏里「对局域网开放」，再回来检测。</span>
+            </div>
+            <div class="netplay-port-result" id="netplay-port-result"></div>
           </div>
 
           <div class="card">
@@ -681,10 +698,13 @@
               <label class="field"><span>参数（每行一个）</span><textarea id="np-args" class="input" rows="4" placeholder="--room&#10;my-room" spellcheck="false"></textarea></label>
               <label class="field"><span>工作目录（可留空）</span><input id="np-cwd" class="input" placeholder="留空则使用程序所在目录" spellcheck="false"></label>
               <label class="netplay-check"><input type="checkbox" id="np-autocopy" checked><span>启动后自动复制本机地址</span></label>
+              <label class="netplay-check"><input type="checkbox" id="np-autostart-game"><span>开房后自动启动上方选中的游戏实例</span></label>
               <div class="netplay-form-actions">
                 <button class="btn primary small" id="btn-netplay-save">保存配置</button>
                 <button class="btn ghost small danger-text" id="btn-netplay-remove">删除当前配置</button>
                 <button class="btn ghost small" id="btn-netplay-new">新建配置</button>
+                <button class="btn ghost small" id="btn-netplay-export">导出配置</button>
+                <button class="btn ghost small" id="btn-netplay-import">导入配置</button>
               </div>
               <p class="muted-sm" id="netplay-form-hint">支持占位符：{gameDir}、{player}、{address}。</p>
             </div>

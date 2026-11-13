@@ -337,6 +337,9 @@
       setHint('');
     });
     MP.on('#btn-edit-account', 'click', editAccount);
+    MP.on('#btn-account-detail', 'click', () => {
+      if (MP.openAccountDetail) MP.openAccountDetail();
+    });
     MP.on('#profile-card', 'click', editAccount);
 
     $$('[data-action]', $('#view-home')).forEach((button) => {

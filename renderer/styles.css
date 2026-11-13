@@ -4998,6 +4998,75 @@ html[data-theme="light"] .about-update-notes pre { background: #f3f6fa; color: #
   flex-wrap: wrap;
 }
 
+/* 端口检测 */
+.netplay-port-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.netplay-port-row .field {
+  min-width: 120px;
+  max-width: 160px;
+}
+
+.netplay-port-result {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.netplay-port-result:empty {
+  display: none;
+}
+
+.netplay-port-row-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.netplay-port-row-item code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--text);
+}
+
+.netplay-port-bad {
+  color: #ff8080;
+  font-size: 12px;
+}
+
+/* 账户详情 */
+.account-detail {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.account-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12.5px;
+}
+
+.account-detail-row:last-child {
+  border-bottom: none;
+}
+
+.account-detail-row strong {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .netplay-guides-card {
   margin-top: 12px;
 }

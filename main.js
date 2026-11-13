@@ -93,6 +93,7 @@ const launcher = require('./src/core/launcher');
 const javaCore = require('./src/core/java');
 const loaders = require('./src/core/loaders');
 const accounts = require('./src/core/accounts');
+const auth = require('./src/core/auth');
 const microsoft = require('./src/core/microsoft');
 const skinmanager = require('./src/core/skinmanager');
 const appearance = require('./src/core/appearance');
@@ -1957,6 +1958,161 @@ function registerIpc() {
     });
     if (picked.canceled || !picked.filePaths.length) return { ok: false, canceled: true };
     return { ok: true, filePath: picked.filePaths[0] };
+  });
+
+  ipcMain.handle('netplay:check-ports', async (event, payload = {}) => {
+    try {
+      return await netplay.checkPorts({ port: payload.port });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('netplay:share', async (event, payload = {}) => {
+    try {
+      const target = await versionTarget(payload.targetVersionId);
+      const profile = netplay.profiles(settings.get()).find((item) => item.id === String(payload.id || ''));
+      if (!profile) return { ok: false, error: '联机配置不存在，请先保存配置' };
+      return netplay.buildShareText(profile, {
+        gameDir: target.gameDir || target.dir || '',
+        player: settings.get().offlineName || '',
+        port: payload.port,
+      });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('netplay:export-profiles', async (event) => {
+    const list = netplay.profiles(settings.get());
+    if (!list.length) return { ok: false, error: '还没有可导出的联机配置' };
+    const picked = await dialog.showSaveDialog(senderWindow(event), {
+      title: '导出联机配置',
+      defaultPath: path.join(app.getPath('documents'), 'minepilot-netplay.json'),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+    try {
+      const data = netplay.exportProfiles(list);
+      fs.writeFileSync(picked.filePath, JSON.stringify(data, null, 2), 'utf8');
+      return { ok: true, filePath: picked.filePath, count: data.profiles.length };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('netplay:import-profiles', async (event) => {
+    const picked = await dialog.showOpenDialog(senderWindow(event), {
+      title: '导入联机配置',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }, { name: '所有文件', extensions: ['*'] }],
+    });
+    if (picked.canceled || !picked.filePaths.length) return { ok: false, canceled: true };
+    try {
+      const raw = fs.readFileSync(picked.filePaths[0], 'utf8');
+      const result = netplay.importProfiles(raw);
+      const existing = netplay.profiles(settings.get()).slice();
+      let added = 0;
+      let replaced = 0;
+      for (const profile of result.profiles) {
+        const index = existing.findIndex((item) => item.id === profile.id);
+        if (index >= 0) {
+          existing[index] = profile;
+          replaced += 1;
+        } else {
+          existing.push(profile);
+          added += 1;
+        }
+      }
+      settings.update({ netplayProfiles: existing.slice(0, 50) });
+      return { ok: true, added, replaced, warnings: result.warnings };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:profile-detail', () => {
+    try {
+      const summary = accounts.summary();
+      const list = accounts.list();
+      let active = list.find((item) => item.active) || null;
+      // 没有显式账户记录时（纯离线模式），按当前离线名给出同样的详情，
+      // 避免界面上一片「—」。
+      if (!active) {
+        const name = String(settings.get().offlineName || '').trim() || 'Steve';
+        const profile = auth.offlineProfile ? auth.offlineProfile(name) : null;
+        active = {
+          id: 'offline',
+          type: 'offline',
+          name,
+          uuid: (profile && profile.uuid) || (auth.offlineUuid ? auth.offlineUuid(name) : ''),
+          note: '',
+          active: true,
+          expiresAt: 0,
+          expired: false,
+          createdAt: 0,
+          lastUsedAt: 0,
+        };
+      }
+      let skin = { source: 'default', sourceText: '默认（Steve/Alex）', name: '' };
+      try {
+        const library = skinmanager.list();
+        const selected = (library.skins || []).find((item) => item.id === library.activeSkin);
+        if (selected) skin = { source: 'local', sourceText: '本地皮肤库', name: selected.name || '' };
+      } catch (err) { /* 皮肤库不可用不影响详情 */ }
+      if (skin.source === 'default' && active && active.type === 'microsoft') {
+        skin = { source: 'mojang', sourceText: 'Mojang 档案', name: active.name };
+      }
+      return {
+        ok: true,
+        account: active,
+        accountCount: list.length,
+        encryption: summary.encryption,
+        skin,
+        version: app.getVersion(),
+        dataDir: config.root(),
+      };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:export-clean', async (event) => {
+    try {
+      const s = settings.get();
+      const safeAccounts = accounts.list().map((item) => ({
+        id: item.id,
+        type: item.type,
+        name: item.name,
+        uuid: item.uuid,
+        note: item.note,
+        active: item.active,
+        createdAt: item.createdAt,
+        lastUsedAt: item.lastUsedAt,
+        expiresAt: item.type === 'microsoft' ? item.expiresAt : 0,
+      }));
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        app: { version: app.getVersion(), platform: process.platform, arch: process.arch },
+        accounts: safeAccounts,
+        secrets: {
+          curseforgeApiKey: Boolean(s.curseforgeApiKey),
+          gistToken: Boolean(s.gistToken),
+          updateFeedUrl: Boolean(s.updateFeedUrl),
+        },
+        note: '脱敏导出：不含 access/refresh token 与密钥明文，只能用于备份账号标识和排查问题。',
+      };
+      const picked = await dialog.showSaveDialog(senderWindow(event), {
+        title: '导出账户信息（脱敏）',
+        defaultPath: path.join(app.getPath('documents'), `minepilot-accounts-${Date.now()}.json`),
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(picked.filePath, JSON.stringify(payload, null, 2), 'utf8');
+      return { ok: true, filePath: picked.filePath, count: safeAccounts.length };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 
   ipcMain.handle('updater:install', async () => {

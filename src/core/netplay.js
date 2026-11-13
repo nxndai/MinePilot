@@ -12,6 +12,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const net = require('net');
 const { spawn } = require('child_process');
 
 const logger = require('./logger');
@@ -89,7 +90,8 @@ function validateProfile(profile) {
   };
 }
 
-function localAddresses() {
+function localAddresses(port = 25565) {
+  const target = normalizePort(port);
   const result = [];
   const interfaces = os.networkInterfaces();
   for (const [name, addresses] of Object.entries(interfaces)) {
@@ -97,10 +99,142 @@ function localAddresses() {
       if (item.family !== 'IPv4' && item.family !== 4) continue;
       if (item.internal) continue;
       if (/^169\.254\./.test(item.address)) continue;
-      result.push({ name, address: item.address, port: 25565, text: `${item.address}:25565` });
+      result.push({ name, address: item.address, port: target, text: `${item.address}:${target}` });
     }
   }
   return result;
+}
+
+function normalizePort(value) {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return 25565;
+  return port;
+}
+
+function isPrivateAddress(address) {
+  return /^10\./.test(address)
+    || /^192\.168\./.test(address)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(address)
+    || /^127\./.test(address);
+}
+
+/** 尝试建立一次 TCP 连接，用来判断端口有没有在监听。 */
+function probeTcp(host, port, timeout = 1800) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeout);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
+/**
+ * 检测指定端口（默认 25565）是否在本机监听。
+ * 只能验证“本机能不能连上”，公网能不能连进来取决于路由/防火墙/穿透工具，
+ * 这里只根据地址是否内网给出提示，不做外网探测。
+ */
+async function checkPorts(options = {}) {
+  const port = normalizePort(options.port);
+  const addresses = localAddresses(port);
+  const checks = [];
+  for (const item of addresses) {
+    checks.push({
+      name: item.name,
+      address: item.address,
+      text: item.text,
+      listening: await probeTcp(item.address, port),
+    });
+  }
+  const loopback = await probeTcp('127.0.0.1', port);
+  const anyListening = loopback || checks.some((item) => item.listening);
+  const privateOnly = addresses.length > 0 && addresses.every((item) => isPrivateAddress(item.address));
+  let advice;
+  if (!anyListening) {
+    advice = `本机 ${port} 端口没有在监听。先在游戏里「对局域网开放」，或确认联机工具已经启动并转发到该端口。`;
+  } else if (privateOnly) {
+    advice = `本机 ${port} 已在监听，但地址都是内网地址。同一局域网的朋友可以直接用上面的地址；异地联机需要端口映射或联机工具。`;
+  } else {
+    advice = `本机 ${port} 已在监听。异机联机还需要路由器端口映射或联机工具，并确认防火墙放行。`;
+  }
+  return { ok: true, port, loopback, addresses: checks, anyListening, privateOnly, advice };
+}
+
+function quoteArg(value) {
+  const text = String(value == null ? '' : value);
+  return /[\s"]/.test(text) ? `"${text.replace(/"/g, '\\"')}"` : text;
+}
+
+/** 生成可以直接粘给朋友的联机信息。 */
+function buildShareText(profile, context = {}) {
+  const normalized = validateProfile(profile);
+  const args = expandArgs(normalized.args, context);
+  const command = [quoteArg(normalized.executable), ...args.map(quoteArg)].join(' ');
+  const port = normalizePort(context.port);
+  const address = (localAddresses(port)[0] || { text: `127.0.0.1:${port}` }).text;
+  const lines = [
+    `配置：${normalized.name}`,
+    `工具：${normalized.tool}`,
+    `启动命令：${command}`,
+  ];
+  if (address) lines.push(`局域网地址：${address}`);
+  return { ok: true, command, address, text: lines.join('\n') };
+}
+
+/** 导出配置为可分享的 JSON（不含可执行文件的绝对路径检查，导入后再校验）。 */
+function exportProfiles(list) {
+  const profiles = (Array.isArray(list) ? list : [])
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      id: String(item.id || '').trim().slice(0, 80),
+      name: String(item.name || '').slice(0, 60),
+      tool: String(item.tool || 'custom').slice(0, 20),
+      executable: String(item.executable || '').slice(0, 500),
+      args: cleanArgs(item.args),
+      cwd: String(item.cwd || '').slice(0, 500),
+      autoCopy: item.autoCopy !== false,
+    }))
+    // 导出和导入用同一套 id 规则，避免“能导出但导入时被静默跳过”。
+    .filter((item) => /^[a-zA-Z0-9._-]{1,80}$/.test(item.id));
+  return { version: 1, exportedAt: new Date().toISOString(), profiles };
+}
+
+/** 导入配置：逐条校验，非法条目跳过并给出原因，不覆盖同 id 之外的数据。 */
+function importProfiles(raw) {
+  const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const list = Array.isArray(data) ? data : (data && Array.isArray(data.profiles) ? data.profiles : null);
+  if (!list) throw new Error('文件里没有 profiles 数组');
+  const profiles = [];
+  const warnings = [];
+  for (const item of list.slice(0, 200)) {
+    const id = String(item && item.id || '').trim();
+    if (!/^[a-zA-Z0-9._-]{1,80}$/.test(id)) {
+      warnings.push(`跳过 id 不合法的配置：${id || '(空)'}`);
+      continue;
+    }
+    if (!String(item.executable || '').trim()) {
+      warnings.push(`跳过没有可执行文件的配置：${item.name || id}`);
+      continue;
+    }
+    profiles.push({
+      id,
+      name: String(item.name || '').trim().slice(0, 60) || id,
+      tool: String(item.tool || 'custom').slice(0, 20),
+      executable: String(item.executable || '').trim().slice(0, 500),
+      args: cleanArgs(item.args),
+      cwd: String(item.cwd || '').trim().slice(0, 500),
+      autoCopy: item.autoCopy !== false,
+    });
+  }
+  if (!profiles.length) throw new Error('没有可导入的配置');
+  return { ok: true, profiles, warnings };
 }
 
 function snapshot() {
@@ -226,6 +360,11 @@ function guides() {
 
 module.exports = {
   profiles,
+  checkPorts,
+  buildShareText,
+  exportProfiles,
+  importProfiles,
+  normalizePort,
   validateProfile,
   localAddresses,
   snapshot,

@@ -16,7 +16,7 @@ const ALLOWED_KEYS = [
   'backgroundColor', 'uiScale', 'animations', 'updateFeedUrl', 'autoCheckUpdates',
   'onlineDownloads', 'language', 'memoryAuto', 'memoryOptimize',
   'javaExtraPaths', 'javaIgnorePaths', 'javaVersionOverrides', 'javaVendor', 'gistToken',
-  'pluginIndexUrl', 'netplayProfiles',
+  'pluginIndexUrl', 'netplayProfiles', 'netplayAutoStartGame', 'netplayStopOnGameExit',
 ];
 
 function defaultGameDir() {
@@ -87,6 +87,9 @@ function defaults() {
     pluginIndexUrl: 'https://raw.githubusercontent.com/nxndai/MinePilot/main/docs/plugin-index.json',
     // 联机工具只保存用户自己的可执行文件与参数，不随启动器分发第三方二进制。
     netplayProfiles: [],
+    // 开房间后是否顺带启动游戏，以及游戏退出时是否自动停掉联机工具。
+    netplayAutoStartGame: false,
+    netplayStopOnGameExit: true,
   };
 }
 
@@ -133,6 +136,8 @@ function sanitize(patch, base) {
       case 'onlineDownloads':
       case 'memoryAuto':
       case 'memoryOptimize':
+      case 'netplayAutoStartGame':
+      case 'netplayStopOnGameExit':
         value = Boolean(value);
         break;
       case 'language':

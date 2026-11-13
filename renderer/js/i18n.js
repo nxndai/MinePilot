@@ -1164,7 +1164,27 @@
     "64 位": "64-bit",
     "32 位": "32-bit",
     "启动时会优先使用“按版本指定”的 Java；没有指定时，自动选择满足要求的最低版本。手动移除只会从列表隐藏，不会删除磁盘文件。": "Java assigned per version takes priority at launch. Without an assignment, the lowest compatible version is selected automatically. Removing an entry only hides it from this list; files on disk are not deleted.",
-    "联机工具已退出": "Tunneling tool exited"
+    "联机工具已退出": "Tunneling tool exited",
+    "端口与连通性检测": "Port & connectivity check",
+    "确认游戏端口是否在本机监听；只检测本机，不会扫描外网。": "Checks whether the game port is listening on this machine. Local only; no external scanning.",
+    "端口": "Port",
+    "检测端口": "Check port",
+    "先在游戏里「对局域网开放」，再回来检测。": "Open the world to LAN in-game first, then come back and check.",
+    "复制联机信息": "Copy connection info",
+    "联机信息": "Connection info",
+    "把下面的内容发给朋友；不含账户令牌或密钥。": "Send this to your friends. It contains no account tokens or keys.",
+    "导出配置": "Export profiles",
+    "导入配置": "Import profiles",
+    "开房后自动启动上方选中的游戏实例": "Launch the selected instance after starting the room",
+    "账户详情": "Account details",
+    "导出脱敏 JSON": "Export redacted JSON",
+    "复制 UUID": "Copy UUID",
+    "令牌存储": "Token storage",
+    "皮肤来源": "Skin source",
+    "登录状态": "Login status",
+    "本地账户数": "Local accounts",
+    "令牌到期": "Token expires",
+    "UUID 用于识别你在服务器上的身份；令牌本身不会显示在界面上。导出为脱敏 JSON 时也不包含令牌。": "The UUID identifies you on servers. Tokens are never shown here and are excluded from the redacted export."
   };
 
   const EN_HTML = {

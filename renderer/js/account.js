@@ -511,5 +511,71 @@
 
   MP.bindAccountSettings = bindAccountSettings;
 
+  /** 账户详情：UUID、令牌有效期、皮肤来源，可复制或导出脱敏 JSON。 */
+  async function openAccountDetail() {
+    let detail;
+    try {
+      detail = await MP.api.invoke('auth:profile-detail');
+    } catch (err) {
+      detail = { ok: false, error: err.message };
+    }
+    if (!detail || !detail.ok) {
+      MP.toast(`读取账户详情失败：${(detail && detail.error) || '未知错误'}`, 'err', 6000);
+      return;
+    }
+    const account = detail.account || {};
+    const isMs = account.type === 'microsoft';
+    const encryption = detail.encryption || {};
+    const rows = [
+      ['名称', account.name || '—'],
+      ['类型', isMs ? 'Microsoft 正版' : '离线账户'],
+      ['UUID', account.uuid || '—'],
+      ['登录状态', isMs ? (account.expired ? '已过期，启动时会自动刷新' : '有效') : '本地离线，无需登录'],
+      ['令牌到期', isMs && account.expiresAt ? new Date(account.expiresAt).toLocaleString() : '—'],
+      ['皮肤来源', `${(detail.skin && detail.skin.sourceText) || '默认'}${detail.skin && detail.skin.name ? ` · ${detail.skin.name}` : ''}`],
+      ['本地账户数', String(detail.accountCount || 0)],
+      ['令牌存储', encryption.available ? `已加密（${encryption.backend || 'safeStorage'}）` : '系统安全存储不可用，退回明文'],
+    ];
+    const bodyRows = rows.map(([label, value]) => `<div class="account-detail-row"><span class="muted-sm">${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+    await MP.modal({
+      title: '账户详情',
+      width: 520,
+      body: `<div class="account-detail">${bodyRows}</div>
+        <p class="muted-sm">UUID 用于识别你在服务器上的身份；令牌本身不会显示在界面上。导出为脱敏 JSON 时也不包含令牌。</p>`,
+      actions: [
+        { label: '关闭', value: null },
+        {
+          label: '复制 UUID',
+          onClick: async () => {
+            if (!account.uuid) {
+              MP.toast('当前账户没有 UUID', 'warn');
+              return false;
+            }
+            await copyText(account.uuid);
+            MP.toast('UUID 已复制', 'ok');
+            return false;
+          },
+        },
+        {
+          label: '导出脱敏 JSON',
+          kind: 'primary',
+          onClick: async () => {
+            let result;
+            try {
+              result = await MP.api.invoke('auth:export-clean');
+            } catch (err) {
+              result = { ok: false, error: err.message };
+            }
+            if (result && result.ok) MP.toast(`已导出 ${result.count} 个账户（不含令牌）`, 'ok', 6000);
+            else if (result && !result.canceled) MP.toast((result && result.error) || '导出失败', 'err', 6000);
+            return false;
+          },
+        },
+      ],
+    });
+  }
+
+  MP.openAccountDetail = openAccountDetail;
+
   MP.openMicrosoftLogin = () => openAccountModal();
 })();

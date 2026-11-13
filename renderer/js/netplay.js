@@ -154,6 +154,8 @@
     state.desktopOnly = Boolean(result.desktopOnly);
     state.addresses = Array.isArray(result.addresses) ? result.addresses : [];
     state.processes = Array.isArray(result.processes) ? result.processes : [];
+    const autoStart = $('#np-autostart-game');
+    if (autoStart) autoStart.checked = Boolean(MP.state.settings && MP.state.settings.netplayAutoStartGame);
     const warning = $('#netplay-warning');
     if (warning && state.desktopOnly) {
       warning.innerHTML = MP.i18n && MP.i18n.language === 'en-US'
@@ -231,13 +233,103 @@
     MP.toast('配置已删除', 'ok');
   }
 
-  async function copyText(text) {
+  async function copyText(text, okText = '地址已复制') {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      MP.toast('地址已复制', 'ok');
+      MP.toast(okText, 'ok');
     } catch (err) {
       MP.toast(`复制失败，请手动选择：${text}`, 'err', 7000);
+    }
+  }
+
+  /** 端口检测：只测本机监听，不扫描外网。 */
+  async function checkPort() {
+    const input = $('#netplay-port');
+    const root = $('#netplay-port-result');
+    const port = Number(input && input.value) || 25565;
+    if (root) root.innerHTML = '<span class="muted-sm">正在检测…</span>';
+    let result;
+    try {
+      result = await MP.api.invoke('netplay:check-ports', { port });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result || !result.ok) {
+      if (root) root.innerHTML = `<span class="netplay-port-bad">检测失败：${esc((result && result.error) || '未知错误')}</span>`;
+      return;
+    }
+    if (!root) return;
+    const rows = (result.addresses || []).map((item) => `<div class="netplay-port-row-item">
+      <span class="badge ${item.listening ? 'success' : 'gray'}">${item.listening ? '监听中' : '未监听'}</span>
+      <code>${esc(item.text)}</code><span class="muted-sm">${esc(item.name)}</span>
+    </div>`).join('');
+    root.innerHTML = `<div class="netplay-port-row-item">
+        <span class="badge ${result.anyListening ? 'success' : 'orange'}">${result.anyListening ? '端口在监听' : '端口未监听'}</span>
+        <code>127.0.0.1:${esc(String(result.port))}</code><span class="muted-sm">本机回环</span>
+      </div>${rows}<p class="muted-sm">${esc(result.advice)}</p>`;
+    if (!result.anyListening) MP.toast(`端口 ${result.port} 没有在监听`, 'warn', 6000);
+  }
+
+  /** 生成可直接发给朋友的联机信息。 */
+  async function share() {
+    if (!state.currentId) {
+      MP.toast('请先选择联机配置', 'err');
+      return;
+    }
+    const target = targetVersion();
+    let result;
+    try {
+      result = await MP.api.invoke('netplay:share', {
+        id: state.currentId,
+        targetVersionId: target ? target.id : '',
+        port: Number(($('#netplay-port') || {}).value) || 25565,
+      });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result || !result.ok) {
+      MP.toast((result && result.error) || '生成联机信息失败', 'err', 6000);
+      return;
+    }
+    await MP.modal({
+      title: '联机信息',
+      width: 560,
+      body: `<p class="muted-sm">把下面的内容发给朋友；不含账户令牌或密钥。</p>
+        <textarea class="input" rows="6" readonly>${esc(result.text || '')}</textarea>`,
+      actions: [
+        { label: '关闭', value: null },
+        { label: '复制', kind: 'primary', onClick: async () => { await copyText(result.text, '联机信息已复制'); return true; } },
+      ],
+    });
+  }
+
+  async function exportProfiles() {
+    let result;
+    try {
+      result = await MP.api.invoke('netplay:export-profiles');
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (result && result.ok) MP.toast(`已导出 ${result.count} 个配置`, 'ok');
+    else if (result && !result.canceled) MP.toast((result && result.error) || '导出失败', 'err', 6000);
+  }
+
+  async function importProfiles() {
+    let result;
+    try {
+      result = await MP.api.invoke('netplay:import-profiles');
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result || !result.ok) {
+      if (result && !result.canceled) MP.toast((result && result.error) || '导入失败', 'err', 6000);
+      return;
+    }
+    await loadState();
+    MP.toast(`导入完成：新增 ${result.added || 0}，覆盖 ${result.replaced || 0}`, 'ok', 6000);
+    if (Array.isArray(result.warnings) && result.warnings.length) {
+      MP.toast(result.warnings[0], 'warn', 8000);
     }
   }
 
@@ -275,6 +367,16 @@
     if (profile && profile.autoCopy !== false && state.addresses.length) {
       copyText(state.addresses[0].text);
     }
+    const autoStart = $('#np-autostart-game');
+    if (autoStart && autoStart.checked) {
+      try {
+        const launched = await MP.api.invoke('launch:start', target.id);
+        if (launched && launched.ok) MP.toast('游戏已启动，进游戏后「对局域网开放」', 'ok', 6000);
+        else MP.toast(`启动游戏失败：${(launched && launched.error) || '未知错误'}`, 'err', 7000);
+      } catch (err) {
+        MP.toast(`启动游戏失败：${err.message}`, 'err', 7000);
+      }
+    }
   }
 
   async function stop() {
@@ -299,6 +401,29 @@
       else MP.toast('还没有检测到本机地址', 'warn');
     });
     MP.on('#btn-netplay-save', 'click', saveProfile);
+    MP.on('#btn-netplay-check-port', 'click', checkPort);
+    MP.on('#btn-netplay-share', 'click', share);
+    MP.on('#btn-netplay-export', 'click', exportProfiles);
+    MP.on('#btn-netplay-import', 'click', importProfiles);
+    MP.on('#np-autostart-game', 'change', async (event) => {
+      try {
+        const saved = await MP.api.invoke('settings:update', { netplayAutoStartGame: Boolean(event.target.checked) });
+        MP.state.settings = saved;
+      } catch (err) {
+        MP.toast(`保存设置失败：${err.message}`, 'err', 5000);
+      }
+    });
+    MP.api.on('launch:exit', async () => {
+      const settings = MP.state.settings || {};
+      if (settings.netplayStopOnGameExit === false) return;
+      const running = state.processes.filter((item) => item.running);
+      if (!running.length) return;
+      for (const item of running) {
+        try { await MP.api.invoke('netplay:stop', item.id); } catch (err) { /* ignore */ }
+      }
+      await loadState();
+      MP.toast('游戏已退出，联机工具也已停止', 'ok', 6000);
+    });
     MP.on('#btn-netplay-browse', 'click', async () => {
       let result;
       try {
