@@ -1,6 +1,6 @@
-# MinePilot
+﻿# MinePilot
 
-**当前最新版本：v1.11.7（2026-11-12 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.8（2026-11-13 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
@@ -39,9 +39,9 @@
 <a id="quick-start"></a>
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.11.7.exe`。
+- 下载 `MinePilot_Setup_1.11.8.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
-- 不想安装时，可下载 `MinePilot_1.11.7_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
+- 不想安装时，可下载 `MinePilot_1.11.8_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
@@ -66,8 +66,8 @@
 - 模组更新检查：按已启用 JAR 的 SHA1 在 Modrinth 反查版本，再按当前游戏版本与加载器获取最新版本，列出“已安装 → 可更新”的差异并提供项目页面入口。没有发布到 Modrinth、无法联网或作者禁用第三方下载的模组会被跳过，不会把猜测结果当成更新。
 - 整合包在线下载与导入导出：在「模组与整合包」页切到「整合包」，可以直接搜索 **Modrinth 整合包**并下载 `.mrpack`，校验 SHA1 后自动创建独立实例，不改动当前实例；下载和导入都会显示进度并支持取消。本地导入则把 `.mrpack` 或 `.zip` 拖到导入区，先预览整合包名称、Minecraft 版本、加载器、文件数量和警告，再确认导入；导入方式可选「新建独立实例」或「合并到当前实例」，默认新建独立实例。`.mrpack` 导入会按清单下载文件并校验 SHA512；带 Minecraft/加载器信息时会自动安装对应版本并创建强制隔离的独立实例，避免污染现有模组。也可以把当前实例导出为 `.mrpack`（推荐，可被其他启动器识别）或 `.zip`，导出内容包含 mods、config、defaultconfigs、kubejs、scripts、resourcepacks、shaderpacks、datapacks 和 options.txt，不包含存档、日志、账户或启动器设置。CurseForge 清单 ZIP 只识别不下载，避免猜测文件直链。
 - 资源包 / 光影 / 数据包管理：新增「内容」页，按实例列出 `resourcepacks`、`shaderpacks` 和 `datapacks`，读取 `pack.mcmeta` 的名称、描述、格式版本与图标；资源包启用状态写入 `options.txt`，光影写入 `config/iris.properties`，停用会重命名/移动而不删除文件。支持导入 ZIP、预览详情、删除到内容回收站，以及从 Modrinth 按资源包/光影/数据包类型搜索下载并自动启用。
-- 联机与内网穿透：新增「联机」页，为 Terracotta / EasyTier / frp 提供官方引导和可选配置模板。填写可执行文件、参数和工作目录后可以一键启动/停止本机联机工具、查看输出并复制局域网地址，参数直接传给进程而不经过 shell。**不捆绑任何第三方二进制、不代管密钥、不绕过正版认证**；浏览器版只展示引导，不能启动本机程序。
-- 多账户与安全存储：账户面板支持多个离线账户和多个 Microsoft 账户，可快速切换、设置备注和查看登录有效期；启动时和切换账户时会自动刷新过期凭据。桌面版通过 Electron `safeStorage`（系统钥匙串）加密保存令牌，文件中不再出现明文 access/refresh token；系统安全存储不可用时会明确警告并退回明文。离线账户名与启动身份保持同步。
+- 联机与内网穿透：新增「联机」页，为 Terracotta / EasyTier / frp 提供官方引导和可选配置模板。填写可执行文件、参数和工作目录后可以一键启动/停止本机联机工具、查看输出并复制局域网地址，参数直接传给进程而不经过 shell。**不捆绑任何第三方二进制、不代管密钥、不绕过正版认证**；浏览器版只展示引导，不能启动本机程序。还提供端口与连通性检测（可自定义端口，显示本机回环和各网卡是否在监听，并区分内网/公网场景给出提示）、联机配置导入导出（JSON，导出与导入用同一套 id 规则）、「复制联机信息」（生成含启动命令与局域网地址的文本），以及开房后自动启动实例、游戏退出后自动停止联机工具的联动开关。
+- 多账户与安全存储：账户面板支持多个离线账户和多个 Microsoft 账户，可快速切换、设置备注和查看登录有效期；启动时和切换账户时会自动刷新过期凭据。桌面版通过 Electron `safeStorage`（系统钥匙串）加密保存令牌，文件中不再出现明文 access/refresh token；系统安全存储不可用时会明确警告并退回明文。离线账户名与启动身份保持同步。「账户详情」可查看名称、类型、UUID、登录状态、令牌到期、皮肤来源和令牌存储方式，并一键复制 UUID；脱敏导出只包含账户标识与「密钥是否已配置」的布尔值，不含 access/refresh token 与密钥明文。
 - 插件市场与权限声明：新增 HTTPS JSON 插件索引，可从「设置 → 插件」刷新市场并安装；安装前展示 `plugin.json` 的 `permissions.network` 域名白名单，安装时按 SHA-256 校验压缩包。插件 API 新增 `registerPanel()`、`getMods()`、`getContent()` 和下载事件 `download:started/progress/completed`；联网域名在 Worker 内通过 fetch/XHR/WebSocket/importScripts 统一拦截，未声明的域名一律拒绝。仓库内提供 `docs/plugin-index.json` 与示例插件，索引格式见下文。
 - 账户：离线账户与 Microsoft 正版登录。Microsoft 使用 OAuth 2.0 设备代码流，登录后自动取得正版用户名、UUID 与 Minecraft 访问令牌，可在正版服务器使用。若浏览器没有自动打开，可点「复制链接」手动访问 `https://www.microsoft.com/link`；在浏览器里登录后还需要点「继续 / 接受」完成授权。
 - 离线启动：离线 UUID（`MD5("OfflinePlayer:<name>")`）、JVM / 游戏参数替换、natives 解压、日志实时回显。
@@ -106,7 +106,7 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 
 - 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
   ```powershell
-  Get-FileHash .\MinePilot_Setup_1.11.7.exe -Algorithm SHA256
+  Get-FileHash .\MinePilot_Setup_1.11.8.exe -Algorithm SHA256
   ```
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
@@ -163,6 +163,16 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 <a id="changelog"></a>
 ## 更新记录
+
+### 1.11.8
+
+- 联机页新增端口与连通性检测：可自定义端口，显示本机回环和各网卡是否在监听，并按内网 / 公网场景给出提示（只检测本机，不扫描外网）。
+- 联机配置支持导入导出（JSON），导出与导入使用同一套 id 校验规则，方便把配置分享给朋友。
+- 新增「复制联机信息」：生成包含启动命令和局域网地址的文本，一键发给朋友。
+- 联机与游戏联动：开房后可自动启动选中的游戏实例；游戏退出时自动停止联机工具，两项都可在配置区开关。
+- 账户页新增「账户详情」：查看名称、类型、UUID、登录状态、令牌到期、皮肤来源和令牌存储方式，可一键复制 UUID。
+- 新增账户脱敏导出：导出的 JSON 只包含账户标识和「密钥是否已配置」的布尔值，不含 access/refresh token 与密钥明文。
+- 修复没有账户记录时账户详情显示为空的问题：现在会回落到当前离线名与离线 UUID。
 
 ### 1.11.7
 
@@ -384,13 +394,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.11.7",
+  "version": "1.11.8",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.11.7.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.11.7.exe",
+      "name": "MinePilot_Setup_1.11.8.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.8.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -569,7 +579,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.7.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.8.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -577,7 +587,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.7.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.8.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
