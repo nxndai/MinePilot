@@ -19,3 +19,5 @@ tools/installer/sfx-staging-*/
 tools/installer/sfx-payload-*.zip
 tools/installer/sfx-stub-*.exe
 tools/installer/sfx-build-*.cs
+# 内部交接文档：只给下一个会话看，不发布
+HANDOFF.md
