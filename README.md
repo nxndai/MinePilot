@@ -402,6 +402,16 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 也可以直接填[红石中继站资源页](https://www.mczwlt.net/resource/m4bdnro8)（例如 `https://www.mczwlt.net/resource/m4bdnro8`）当作**版本来源**：启动器会通过站点公开 API 读取最新版本号和更新说明。注意站内附件下载需要登录（站点接口对匿名请求返回 401），所以启动器会改用同一版本的 GitHub Release 安装包；如果该版本还没同步到 GitHub，会提示你到发布页手动下载。
 
+在红石中继站发布版本时，把文件分发方式选成**外部链接**（API 里是 `distribution: "SELF"` 的 `link` 字段，见
+`/api/hub/resource/<shortId>` 与 `/api/hub/resource/version/search`），填 GitHub Release 的直链即可，例如：
+
+```text
+MinePilot_Setup_<版本>.exe
+https://github.com/nxndai/MinePilot/releases/download/v<版本>/MinePilot_Setup_<版本>.exe
+```
+
+这样站内下载和启动器下载都指向同一个文件；启动器会用 GitHub Release 的 SHA256 校验外链下载的安装包（按文件名匹配）。
+
 manifest 示例：
 
 ```json

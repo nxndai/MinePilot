@@ -319,25 +319,35 @@ async function fetchMczRelease(shortId) {
   if (!version) throw new Error('这个资源还没有已发布的版本（站点可能仍在审核）');
 
   const files = Array.isArray(version.files) ? version.files : [];
-  const assets = files.map((item) => ({
-    name: String((item.fileInfo && item.fileInfo.filename) || ''),
-    url: '',
-    platform: '',
-    arch: '',
-    sha256: '',
-    size: Number((item.fileInfo && item.fileInfo.size) || 0),
-  }));
-  const chosen = files.find((item) => /\.exe$/i.test(String((item.fileInfo && item.fileInfo.filename) || '')))
-    || files.find((item) => /\.zip$/i.test(String((item.fileInfo && item.fileInfo.filename) || '')))
-    || files[0]
-    || null;
+  const assets = files.map((item) => {
+    const info = item.fileInfo || {};
+    // 站内托管（MANAGED）的附件需要登录才能下载；外链（SELF）用 link 字段。
+    const link = item.distribution === 'SELF' && isSafeUrl(item.link) ? String(item.link) : '';
+    const fallbackName = String(link || '').split('/').filter(Boolean).pop() || '';
+    return {
+      name: String(info.filename || fallbackName || ''),
+      url: link,
+      platform: '',
+      arch: '',
+      sha256: '',
+      size: Number(info.size) || 0,
+    };
+  });
+  const rank = (asset) => {
+    if (!asset.url) return 90;
+    if (/\.exe$/i.test(asset.name)) return 0;
+    if (/\.zip$/i.test(asset.name)) return 1;
+    return 2;
+  };
+  const sorted = assets.slice().sort((a, b) => rank(a) - rank(b));
+  const chosen = assets.length ? sorted[0] : null;
 
   return {
     version: versionFromName(version.version || version.semver || ''),
     notes: String(version.changelog || ''),
     publishedAt: version.createdAt || '',
     url: `https://www.mczwlt.net/resource/${shortId}`,
-    asset: chosen ? assets[files.indexOf(chosen)] : null,
+    asset: chosen,
     assets,
     source: 'mczwlt',
   };
@@ -419,20 +429,25 @@ async function download() {
   if (compareVersions(release.version, context.currentVersion) <= 0) throw new Error('当前版本已经不低于更新源中的版本，不需要更新');
   if (active) throw new Error('已有更新正在下载');
   let asset = release.asset;
-  // 红石中继站只提供版本信息，站内附件需要登录才能下载；
-  // 如果同一版本在 GitHub Release 里也有，就直接用 GitHub 的安装包。
-  if (!asset || !asset.url) {
-    if (release.source === 'mczwlt') {
-      try {
-        const fallback = await fetchGithubRelease();
-        if (fallback && fallback.asset && fallback.asset.url
-          && normalizeVersion(fallback.version) === normalizeVersion(release.version)) {
+  // 红石中继站：外链（SELF）直接下载；没有外链或没有哈希时，向 GitHub 的同版本 Release 借用。
+  if (release.source === 'mczwlt') {
+    try {
+      const fallback = await fetchGithubRelease();
+      const sameVersion = fallback && normalizeVersion(fallback.version) === normalizeVersion(release.version);
+      if (sameVersion && fallback.asset) {
+        if (!asset || !asset.url) {
           asset = fallback.asset;
-          logger.info('红石中继站附件需登录，改用 GitHub 同版本安装包:', release.version);
+          logger.info('红石中继站没有可直接下载的附件，改用 GitHub 同版本安装包:', release.version);
+        } else if (!asset.sha256) {
+          const match = (fallback.assets || []).find((item) => item.name && item.name === asset.name) || fallback.asset;
+          if (match && match.sha256) {
+            asset = Object.assign({}, asset, { sha256: match.sha256, size: match.size || asset.size });
+            logger.info('外链安装包使用 GitHub Release 的 SHA256 校验:', asset.name);
+          }
         }
-      } catch (err) {
-        logger.warn('读取 GitHub Release 失败:', err.message);
       }
+    } catch (err) {
+      logger.warn('读取 GitHub Release 失败:', err.message);
     }
   }
   if (!asset || !asset.url) {
@@ -572,6 +587,7 @@ module.exports = {
   compareVersions,
   normalizeVersion,
   resolveFeed,
+  fetchMczRelease,
   versionFromName,
   reset,
 };
