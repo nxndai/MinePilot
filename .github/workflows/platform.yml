@@ -1,0 +1,68 @@
+name: Platform smoke (macOS / Linux)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      # 纯 Node 的跨平台检查：默认游戏目录、数据目录初始化、版本扫描、联机地址、ZIP 读写。
+      - name: Platform smoke (no GUI)
+        run: node tests/platform-smoke.js
+
+      - name: Unit tests
+        run: npm test
+
+      # 真正把 Electron 跑起来：--shot 截图 + --dump 导出界面状态后自动退出。
+      - name: Install xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgbm1 libasound2t64 || sudo apt-get install -y xvfb libgbm1 libasound2
+
+      - name: Launch app headless (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a --server-args="-screen 0 1280x800x24" npx electron . --no-sandbox --shot smoke.png --dump=smoke.json
+
+      - name: Launch app headless (macOS)
+        if: runner.os == 'macOS'
+        run: npx electron . --shot smoke.png --dump=smoke.json
+
+      - name: Verify screenshot and dump
+        run: node tools/check-smoke.js
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            smoke.png
+            smoke.json
+          if-no-files-found: warn
+          retention-days: 14
