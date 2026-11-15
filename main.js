@@ -105,6 +105,7 @@ const updater = require('./src/core/updater');
 const plugins = require('./src/core/plugins');
 const content = require('./src/core/content');
 const netplay = require('./src/core/netplay');
+const p2p = require('./src/core/p2p');
 
 // 桌面版把 Microsoft 令牌交给 Chromium 的系统安全存储加密，而不是直接
 // 写入明文 accounts.json。safeStorage 在 Linux 缺少钥匙串时 may return false，
@@ -1960,6 +1961,30 @@ function registerIpc() {
     return { ok: true, filePath: picked.filePaths[0] };
   });
 
+  ipcMain.handle('p2p:state', () => p2p.snapshot());
+
+  ipcMain.handle('p2p:host', async (event, payload = {}) => {
+    const win = senderWindow(event);
+    p2p.setEmitter((message) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(message.type === 'peer' ? 'p2p:peers' : 'p2p:state', message.payload);
+      }
+    });
+    return p2p.startHost({ port: payload.port });
+  });
+
+  ipcMain.handle('p2p:join', async (event, payload = {}) => {
+    const win = senderWindow(event);
+    p2p.setEmitter((message) => {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(message.type === 'peer' ? 'p2p:peers' : 'p2p:state', message.payload);
+      }
+    });
+    return p2p.join({ roomCode: payload.roomCode, localPort: payload.localPort });
+  });
+
+  ipcMain.handle('p2p:stop', async () => p2p.stop());
+
   ipcMain.handle('netplay:check-ports', async (event, payload = {}) => {
     try {
       return await netplay.checkPorts({ port: payload.port });
@@ -2439,6 +2464,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   try { netplay.stopAll(); } catch (err) { /* ignore */ }
+  try { p2p.stop(); } catch (err) { /* ignore */ }
 });
 
 process.on('uncaughtException', (err) => {

@@ -243,6 +243,94 @@
     }
   }
 
+  /** P2P 直连：房主创建房间 / 加入者粘贴房间码。 */
+  function p2pState(value) {
+    if (!value) return;
+    state.p2p = value;
+    const badge = $('#p2p-badge');
+    const text = $('#p2p-status-text');
+    const room = $('#p2p-room');
+    const code = $('#p2p-room-code');
+    const mode = value.mode || '';
+    if (badge) {
+      badge.textContent = mode === 'host' ? '房间已开启' : mode === 'join' ? '已加入' : '未连接';
+      badge.className = `badge ${mode ? 'success' : 'gray'}`;
+    }
+    if (text) {
+      if (mode === 'host') {
+        text.textContent = `等待朋友加入（已连接 ${value.peers || 0} 人）· 转发到本机 ${value.targetPort} 端口`;
+      } else if (mode === 'join') {
+        text.textContent = `在游戏里「直接连接」到 ${value.address}（当前 ${value.peers || 0} 条连接）`;
+      } else {
+        text.textContent = value.error || '房主创建房间后，把房间码发给朋友。';
+      }
+    }
+    if (room) room.classList.toggle('hidden', mode !== 'host' || !value.roomCode);
+    if (code && value.roomCode) code.textContent = value.roomCode;
+    const stop = $('#btn-p2p-stop');
+    if (stop) stop.disabled = !mode;
+    const host = $('#btn-p2p-host');
+    if (host) host.disabled = Boolean(mode);
+    const join = $('#btn-p2p-join');
+    if (join) join.disabled = Boolean(mode);
+  }
+
+  async function p2pHost() {
+    const port = Number(($('#p2p-host-port') || {}).value) || 25565;
+    const ok = await MP.modal({
+      title: '创建 P2P 房间',
+      body: `<p>将开启点对点隧道，把朋友的连接转发到你本机 <code>127.0.0.1:${port}</code>。</p>
+        <p class="muted-sm">请先在游戏里「对局域网开放」，并确认端口一致。房间码相当于密码，只发给要一起玩的人。</p>`,
+      actions: [{ label: '取消', value: false }, { label: '创建房间', kind: 'primary', value: true }],
+    });
+    if (ok !== true) return;
+    let result;
+    try {
+      result = await MP.api.invoke('p2p:host', { port });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result || !result.ok) {
+      MP.toast((result && result.error) || '创建房间失败', 'err', 7000);
+      return;
+    }
+    await copyText(result.roomCode, '房间码已复制，发给朋友吧');
+    p2pState({ mode: 'host', roomCode: result.roomCode, targetPort: result.port, peers: 0 });
+  }
+
+  async function p2pJoin() {
+    const input = $('#p2p-code-input');
+    const roomCode = String((input && input.value) || '').trim();
+    if (!roomCode) {
+      MP.toast('请先粘贴房间码', 'err');
+      return;
+    }
+    const localPort = Number(($('#p2p-local-port') || {}).value) || 25566;
+    let result;
+    try {
+      result = await MP.api.invoke('p2p:join', { roomCode, localPort });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (!result || !result.ok) {
+      MP.toast((result && result.error) || '加入房间失败', 'err', 7000);
+      return;
+    }
+    p2pState({ mode: 'join', roomCode: result.roomCode, address: result.address, localPort, peers: 0 });
+    MP.toast(`已加入房间，游戏里直接连接 ${result.address}`, 'ok', 8000);
+  }
+
+  async function p2pStop() {
+    try {
+      await MP.api.invoke('p2p:stop');
+    } catch (err) {
+      MP.toast(`断开失败：${err.message}`, 'err');
+      return;
+    }
+    p2pState({ mode: '', peers: 0 });
+    MP.toast('已断开 P2P 连接', 'ok');
+  }
+
   /** 端口检测：只测本机监听，不扫描外网。 */
   async function checkPort() {
     const input = $('#netplay-port');
@@ -402,6 +490,12 @@
     });
     MP.on('#btn-netplay-save', 'click', saveProfile);
     MP.on('#btn-netplay-check-port', 'click', checkPort);
+    MP.on('#btn-p2p-host', 'click', p2pHost);
+    MP.on('#btn-p2p-join', 'click', p2pJoin);
+    MP.on('#btn-p2p-stop', 'click', p2pStop);
+    MP.on('#btn-p2p-copy', 'click', () => copyText((state.p2p && state.p2p.roomCode) || '', '房间码已复制'));
+    MP.api.on('p2p:state', (payload) => p2pState(payload));
+    MP.api.on('p2p:peers', (payload) => { if (state.p2p) { state.p2p.peers = payload && payload.peers; p2pState(state.p2p); } });
     MP.on('#btn-netplay-share', 'click', share);
     MP.on('#btn-netplay-export', 'click', exportProfiles);
     MP.on('#btn-netplay-import', 'click', importProfiles);
@@ -473,6 +567,7 @@
     },
     onShow() {
       populateTargets();
+      MP.api.invoke('p2p:state').then((value) => p2pState(value)).catch(() => {});
       if (!state.loaded) loadState();
       else {
         populateTargets();

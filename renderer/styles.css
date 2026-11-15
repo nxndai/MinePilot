@@ -5039,6 +5039,46 @@ html[data-theme="light"] .about-update-notes pre { background: #f3f6fa; color: #
   font-size: 12px;
 }
 
+/* P2P 直连 */
+.p2p-controls,
+.p2p-join {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.p2p-controls .field,
+.p2p-join .field {
+  min-width: 120px;
+  max-width: 160px;
+}
+
+.p2p-join .p2p-code-field {
+  flex: 1 1 320px;
+  max-width: none;
+}
+
+.p2p-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.p2p-room code {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  color: #a9cbff;
+}
+
 /* 账户详情 */
 .account-detail {
   display: grid;

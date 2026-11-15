@@ -680,6 +680,34 @@
           <div class="card">
             <div class="installed-head">
               <div>
+                <div class="installed-title">P2P 直连</div>
+                <div class="installed-sub">点对点联机，不需要公网服务器。先在游戏里「对局域网开放」。</div>
+              </div>
+            </div>
+            <div class="p2p-controls">
+              <label class="field"><span>游戏端口</span><input id="p2p-host-port" class="input" type="number" min="1" max="65535" value="25565" spellcheck="false"></label>
+              <button class="btn primary small" id="btn-p2p-host">创建房间</button>
+              <button class="btn ghost small" id="btn-p2p-stop">断开</button>
+            </div>
+            <div class="p2p-join">
+              <label class="field p2p-code-field"><span>房间码</span><input id="p2p-code-input" class="input" placeholder="粘贴房主给你的 64 位房间码" spellcheck="false" autocomplete="off"></label>
+              <label class="field"><span>本地端口</span><input id="p2p-local-port" class="input" type="number" min="1" max="65535" value="25566" spellcheck="false"></label>
+              <button class="btn primary small" id="btn-p2p-join">加入房间</button>
+            </div>
+            <div class="netplay-status-line">
+              <span class="badge gray" id="p2p-badge">未连接</span>
+              <span class="muted-sm" id="p2p-status-text">房主创建房间后，把房间码发给朋友。</span>
+            </div>
+            <div class="p2p-room hidden" id="p2p-room">
+              <code id="p2p-room-code"></code>
+              <button class="btn ghost small" id="btn-p2p-copy">复制房间码</button>
+            </div>
+            <p class="muted-sm">房主：创建房间 → 复制房间码发给朋友。加入者：粘贴房间码 → 加入 → 进游戏用「直接连接」到 <code>127.0.0.1:25566</code>。连接走 UDP 打洞，打不通时由公共 DHT 节点中转，不经过本项目的服务器。</p>
+          </div>
+
+          <div class="card">
+            <div class="installed-head">
+              <div>
                 <div class="installed-title">配置联机工具</div>
                 <div class="installed-sub">参数按“一行一个”填写，直接传给程序，不经过 shell。</div>
               </div>

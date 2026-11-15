@@ -68,6 +68,48 @@ for (const entry of entries) {
   fs.cpSync(source, path.join(appDir, entry), { recursive: true });
 }
 
+// 运行期依赖（P2P 用的 hyperdht 及其依赖）要一起打包，但剔除 electron 和
+// 其它平台的 prebuilds，避免体积膨胀。
+const runtimeModules = path.join(root, 'node_modules');
+if (fs.existsSync(runtimeModules)) {
+  const skipTop = new Set(['electron', '.bin', '.cache', '@types']);
+  const keepPrebuild = `${process.platform}-${process.arch}`;
+  const targetModules = path.join(appDir, 'node_modules');
+  fs.mkdirSync(targetModules, { recursive: true });
+  for (const entry of fs.readdirSync(runtimeModules, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (skipTop.has(entry.name)) continue;
+    if (entry.name.startsWith('@')) {
+      for (const scoped of fs.readdirSync(path.join(runtimeModules, entry.name), { withFileTypes: true })) {
+        if (!scoped.isDirectory()) continue;
+        fs.cpSync(path.join(runtimeModules, entry.name, scoped.name), path.join(targetModules, entry.name, scoped.name), { recursive: true });
+      }
+      continue;
+    }
+    fs.cpSync(path.join(runtimeModules, entry.name), path.join(targetModules, entry.name), { recursive: true });
+  }
+  // 只保留当前平台的 prebuilds
+  const prunePrebuilds = (dir) => {
+    let items = [];
+    try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch (err) { return; }
+    for (const item of items) {
+      const full = path.join(dir, item.name);
+      if (!item.isDirectory()) continue;
+      if (item.name === 'prebuilds') {
+        for (const arch of fs.readdirSync(full, { withFileTypes: true })) {
+          if (arch.isDirectory() && arch.name !== keepPrebuild) {
+            fs.rmSync(path.join(full, arch.name), { recursive: true, force: true });
+          }
+        }
+        continue;
+      }
+      prunePrebuilds(full);
+    }
+  };
+  prunePrebuilds(targetModules);
+  console.log('已复制运行期依赖（P2P）');
+}
+
 // 便携版提供一个双击启动脚本，避免把 --no-sandbox 参数写进快捷方式后
 // 被系统误判；同时确保从任意当前目录启动都能找到 MinePilot.exe。
 fs.writeFileSync(
