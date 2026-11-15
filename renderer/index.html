@@ -618,24 +618,61 @@
         <div class="page-head">
           <div>
             <h1>联机与内网穿透</h1>
-            <p class="sub">用你已有的 Terracotta、EasyTier 或 frp 配置一键启动联机工具。MinePilot 不捆绑第三方程序，也不绕过 Minecraft 账户认证。</p>
+            <p class="sub">P2P 直连开箱即用；Terracotta、EasyTier 或 frp 需要你自备工具。MinePilot 不捆绑第三方程序，也不绕过 Minecraft 账户认证。</p>
           </div>
           <div class="head-chips">
             <div class="chip"><span class="status-dot"></span><span id="netplay-head-status">尚未启动</span></div>
           </div>
         </div>
 
+        <div class="card p2p-hero" id="p2p-hero">
+          <div class="p2p-hero-head">
+            <div class="p2p-hero-mark">P2P</div>
+            <div class="p2p-hero-copy">
+              <div class="p2p-hero-title">
+                P2P 直连
+                <span class="badge green">推荐 · 无需第三方工具</span>
+              </div>
+              <p class="p2p-hero-sub">房主创建房间、把房间码发给朋友；加入者粘贴房间码即可。不需要下载 Terracotta、EasyTier 或 frp，也不需要公网服务器。</p>
+            </div>
+          </div>
+          <div class="p2p-controls">
+            <label class="field"><span>游戏端口</span><input id="p2p-host-port" class="input" type="number" min="1" max="65535" value="25565" spellcheck="false"></label>
+            <button class="btn primary small" id="btn-p2p-host">创建房间</button>
+            <button class="btn ghost small" id="btn-p2p-stop">断开</button>
+          </div>
+          <div class="p2p-join">
+            <label class="field p2p-code-field"><span>房间码</span><input id="p2p-code-input" class="input" placeholder="粘贴房主给你的 64 位房间码" spellcheck="false" autocomplete="off"></label>
+            <label class="field"><span>本地端口</span><input id="p2p-local-port" class="input" type="number" min="1" max="65535" value="25566" spellcheck="false"></label>
+            <button class="btn primary small" id="btn-p2p-join">加入房间</button>
+          </div>
+          <div class="netplay-status-line">
+            <span class="badge gray" id="p2p-badge">未连接</span>
+            <span class="muted-sm" id="p2p-status-text">房主创建房间后，把房间码发给朋友。</span>
+          </div>
+          <div class="p2p-room hidden" id="p2p-room">
+            <code id="p2p-room-code"></code>
+            <button class="btn ghost small" id="btn-p2p-copy">复制房间码</button>
+          </div>
+          <p class="muted-sm">先在游戏里「对局域网开放」。房主创建房间后复制房间码；加入者加入后，在游戏里用「直接连接」到 <code>127.0.0.1:25566</code>。连接走 UDP 打洞，打不通时由公共 DHT 节点中转，不经过本项目的服务器。</p>
+        </div>
+
+        <div class="netplay-separator" aria-label="其他联机方式">
+          <span>其他联机方式</span>
+          <small>以下功能需要自备第三方工具，与上方 P2P 直连相互独立</small>
+        </div>
+
         <div class="netplay-warning" id="netplay-warning" data-i18n-html="netplay.warning">
-          <strong>需要你自行准备联机工具</strong>
-          <span>Terracotta / EasyTier / frp 的可执行文件和房间配置由你提供。启动器只执行你明确选择的本机文件，并展示本机局域网地址。</span>
+          <strong>以下功能需要你自行准备联机工具</strong>
+          <span>Terracotta / EasyTier / frp 的可执行文件和房间配置由你提供。启动器只执行你明确选择的本机文件，并展示本机局域网地址；P2P 直连不需要这些工具。</span>
         </div>
 
         <div class="netplay-layout">
           <div class="card">
             <div class="installed-head">
               <div>
-                <div class="installed-title">一键开房间</div>
-                <div class="installed-sub">启动联机工具后，把本机地址发给朋友；游戏内仍需“对局域网开放”。</div>
+                <div class="installed-title">第三方工具开房</div>
+                <div class="installed-sub">启动 Terracotta / EasyTier / frp 后，把本机地址发给朋友；游戏内仍需“对局域网开放”。</div>
               </div>
             </div>
             <div class="netplay-controls">
@@ -648,7 +685,7 @@
                 <select id="netplay-profile-select" class="input select"></select>
               </label>
               <div class="netplay-actions">
-                <button class="btn primary" id="btn-netplay-start">一键开房间</button>
+                <button class="btn primary" id="btn-netplay-start">启动联机工具</button>
                 <button class="btn ghost" id="btn-netplay-stop">停止</button>
                 <button class="btn ghost" id="btn-netplay-copy">复制地址</button>
                 <button class="btn ghost" id="btn-netplay-share">复制联机信息</button>
@@ -677,33 +714,7 @@
             <div class="netplay-port-result" id="netplay-port-result"></div>
           </div>
 
-          <div class="card">
-            <div class="installed-head">
-              <div>
-                <div class="installed-title">P2P 直连</div>
-                <div class="installed-sub">点对点联机，不需要公网服务器。先在游戏里「对局域网开放」。</div>
-              </div>
-            </div>
-            <div class="p2p-controls">
-              <label class="field"><span>游戏端口</span><input id="p2p-host-port" class="input" type="number" min="1" max="65535" value="25565" spellcheck="false"></label>
-              <button class="btn primary small" id="btn-p2p-host">创建房间</button>
-              <button class="btn ghost small" id="btn-p2p-stop">断开</button>
-            </div>
-            <div class="p2p-join">
-              <label class="field p2p-code-field"><span>房间码</span><input id="p2p-code-input" class="input" placeholder="粘贴房主给你的 64 位房间码" spellcheck="false" autocomplete="off"></label>
-              <label class="field"><span>本地端口</span><input id="p2p-local-port" class="input" type="number" min="1" max="65535" value="25566" spellcheck="false"></label>
-              <button class="btn primary small" id="btn-p2p-join">加入房间</button>
-            </div>
-            <div class="netplay-status-line">
-              <span class="badge gray" id="p2p-badge">未连接</span>
-              <span class="muted-sm" id="p2p-status-text">房主创建房间后，把房间码发给朋友。</span>
-            </div>
-            <div class="p2p-room hidden" id="p2p-room">
-              <code id="p2p-room-code"></code>
-              <button class="btn ghost small" id="btn-p2p-copy">复制房间码</button>
-            </div>
-            <p class="muted-sm">房主：创建房间 → 复制房间码发给朋友。加入者：粘贴房间码 → 加入 → 进游戏用「直接连接」到 <code>127.0.0.1:25566</code>。连接走 UDP 打洞，打不通时由公共 DHT 节点中转，不经过本项目的服务器。</p>
-          </div>
+          
 
           <div class="card">
             <div class="installed-head">

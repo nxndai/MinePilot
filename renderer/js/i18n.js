@@ -1004,12 +1004,18 @@
     // 联机与内网穿透
     "联机": "Play together",
     "联机与内网穿透": "Multiplayer & tunneling",
-    "用你已有的 Terracotta、EasyTier 或 frp 配置一键启动联机工具。MinePilot 不捆绑第三方程序，也不绕过 Minecraft 账户认证。": "Start your existing Terracotta, EasyTier or frp setup with one click. MinePilot does not bundle third-party programs or bypass Minecraft authentication.",
+    "P2P 直连开箱即用；Terracotta、EasyTier 或 frp 需要你自备工具。MinePilot 不捆绑第三方程序，也不绕过 Minecraft 账户认证。": "P2P direct play works out of the box; Terracotta, EasyTier or frp requires your own tool. MinePilot does not bundle third-party programs or bypass Minecraft authentication.",
     "尚未启动": "Not started",
-    "需要你自行准备联机工具": "Bring your own tunneling tool",
-    "Terracotta / EasyTier / frp 的可执行文件和房间配置由你提供。启动器只执行你明确选择的本机文件，并展示本机局域网地址。": "You provide the executable and room configuration. The launcher only runs the local file you select and shows your LAN address.",
+    "以下功能需要你自行准备联机工具": "The options below require your own tunneling tool",
+    "Terracotta / EasyTier / frp 的可执行文件和房间配置由你提供。启动器只执行你明确选择的本机文件，并展示本机局域网地址；P2P 直连不需要这些工具。": "You provide the Terracotta / EasyTier / frp executable and room configuration. The launcher only runs the local file you select and shows your LAN address; P2P direct play above does not need these tools.",
     "一键开房间": "Start a room",
+    "第三方工具开房": "Third-party tool room",
+    "启动联机工具": "Start tunneling tool",
     "启动联机工具后，把本机地址发给朋友；游戏内仍需“对局域网开放”。": "After starting the tool, send your local address to friends; you still need to open the world to LAN in-game.",
+    "P2P 直连": "P2P direct",
+    "推荐 · 无需第三方工具": "Recommended · no third-party tool",
+    "其他联机方式": "Other multiplayer options",
+    "以下功能需要自备第三方工具，与上方 P2P 直连相互独立": "The options below need your own third-party tool and are separate from P2P direct above",
     "游戏实例": "Game instance",
     "联机配置": "Tunneling profile",
     "停止": "Stop",
@@ -1190,7 +1196,7 @@
   const EN_HTML = {
     'about.intro': 'MinePilot is a lightweight Minecraft Java Edition launcher with version management, vanilla downloads, one-click Fabric / Forge / NeoForge / Quilt installation, pre-launch file verification and repair, mod dependency checks, Microsoft login, version isolation and log viewing. The interface and interactions are inspired by <strong>Plain Craft Launcher (PCL)</strong>, but <strong>no PCL source code was used</strong>. All features are independently implemented. PCL uses a custom PCL Distribution License and is not an OSI open-source project; this project does not copy its code or assets.',
     'plugin.warning': 'Plugins run in a Web Worker and have <strong>no network access by default</strong>. Only domains declared in <code>permissions.network</code> inside <code>plugin.json</code> can be reached. Plugins cannot access account tokens or directly modify game files. Install only plugins you trust.',
-    'netplay.warning': '<strong>Bring your own tunneling tool</strong><span>You provide the Terracotta / EasyTier / frp executable and room configuration. The launcher only runs the local file you explicitly select and shows your LAN address.</span>',
+    'netplay.warning': '<strong>The options below require your own tunneling tool</strong><span>You provide the Terracotta / EasyTier / frp executable and room configuration. The launcher only runs the local file you explicitly select and shows your LAN address. P2P direct play above does not need these tools.</span>',
   };
 
   const PATTERNS = [
