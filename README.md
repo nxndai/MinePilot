@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.11.9（2026-11-14 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.10（2026-11-15 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 [![CI](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml)
 [![Platform smoke (macOS / Linux)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml)
@@ -42,9 +42,9 @@
 <a id="quick-start"></a>
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.11.9.exe`。
+- 下载 `MinePilot_Setup_1.11.10.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
-- 不想安装时，可下载 `MinePilot_1.11.9_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
+- 不想安装时，可下载 `MinePilot_1.11.10_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
@@ -109,7 +109,7 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 
 - 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
   ```powershell
-  Get-FileHash .\MinePilot_Setup_1.11.9.exe -Algorithm SHA256
+  Get-FileHash .\MinePilot_Setup_1.11.10.exe -Algorithm SHA256
   ```
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
@@ -123,7 +123,7 @@ GitHub 在部分网络下无法直接访问，可以按下面的顺序试：
 3. 有加速器（如 Watt Toolkit / Steam++）时，直连 GitHub 最快。
 4. 无论从哪里下载，都可以用 Release 里的 `.sha256` 核对文件：
    ```powershell
-   Get-FileHash .\MinePilot_Setup_1.11.9.exe -Algorithm SHA256
+   Get-FileHash .\MinePilot_Setup_1.11.10.exe -Algorithm SHA256
    ```
 
 ### 为什么下载失败？
@@ -179,7 +179,16 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 <a id="changelog"></a>
 ## 更新记录
 
+### 1.11.10
+
+- 启动器更新源可以填红石中继站资源页：通过站点公开 API 读取最新版本号与更新说明，不需要自己维护 manifest。
+- 支持站点版本里的「外部链接」分发（`distribution: SELF` 的 `link`）：外链指向 GitHub 直链时，启动器直接用外链下载。
+- GitHub API 不可用时按固定命名构造 Release 直链，仍然走镜像续传；校验值从同目录 `.sha256` 取（同样支持镜像）。
+- 站内附件需要登录（匿名接口返回 401）时，自动回退同版本的 GitHub 安装包；都拿不到就提示到发布页手动下载。
+- README 新增「打不开 GitHub 链接 / 没有加速器怎么办」，把红石中继站列为国内首选下载渠道。
+
 ### 1.11.9
+
 
 - 修复「能检测到更新、下载却总是失败」：GitHub 的发布资源会重定向到 release-assets.githubusercontent.com，该域名在部分网络下连得上却收不到任何数据。现在主地址失败会自动切换到内置镜像（ghfast.top / ghproxy.net）。
 - 更新包下载改为断点续传（HTTP Range）：连接中途被重置时从断点继续，不再从头重下 100MB+。
@@ -428,13 +437,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.11.9",
+  "version": "1.11.10",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.11.9.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.11.9.exe",
+      "name": "MinePilot_Setup_1.11.10.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.10.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -613,7 +622,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.9.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.10.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -621,7 +630,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.9.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.10.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
