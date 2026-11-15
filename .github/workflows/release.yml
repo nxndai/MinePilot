@@ -70,6 +70,14 @@ jobs:
           path: .cache
           key: electron-${{ env.ELECTRON_VERSION }}-win32-x64
 
+      # 运行期依赖（P2P 用的 hyperdht 等）要装好，package-win 才会把它们打进包里。
+      # electron 的 postinstall 不需要跑，运行时单独由 download-electron 提供。
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: |
+          npm ci --ignore-scripts
+          if (-not (Test-Path node_modules/hyperdht)) { throw '运行期依赖安装失败：缺少 hyperdht' }
+
       - name: Download Electron
         shell: pwsh
         run: node tools/download-electron.js $env:ELECTRON_VERSION
