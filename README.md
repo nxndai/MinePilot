@@ -2,6 +2,9 @@
 
 **当前最新版本：v1.11.9（2026-11-14 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
+[![CI](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml)
+[![Platform smoke (macOS / Linux)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml)
+
 > **正版提示**：本启动器仅作为本地游戏管理器，内置的下载功能仅用于拉取用户已合法拥有的游戏文件，请确保您已购买正版 Minecraft。
 
 ## 目录
@@ -375,7 +378,7 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 - `runtime/electron/` 是由 `tools/download-electron.js` 下载的 Windows x64 运行时（不提交到源码仓库），`tools/package-win.js`、`tools/package-desktop-installer.js`、`tools/package-web.js`、`tools/package-installer.js` 都只面向 Windows；
 - 本仓库没有内置 macOS `.app` 或 Linux AppImage/deb 的构建产物；
-- 本环境只能在 Windows 上实际运行和截图验证。macOS/Linux 的代码路径已经实现，但没有在真实 macOS/Linux 机器上完成端到端启动测试，不能声称“已在三个系统验证”。
+- 本环境只能在 Windows 上完成安装包构建与真实桌面交互验证；**macOS / Linux 由 GitHub Actions 实际运行**（[`.github/workflows/platform.yml`](.github/workflows/platform.yml)）：在 `ubuntu-latest` 与 `macos-latest` 上跑单元测试 + 跨平台冒烟（默认目录、数据目录、版本扫描、联机地址、ZIP 读写），再用无头 Electron 启动应用、截图并校验界面状态。仍未验证的是这两个系统上的安装包构建与真实桌面交互。
 
 如果要自行构建 macOS/Linux 版，需要在该系统准备 Node.js、npm 和 Electron 33，然后使用 Electron 打包工具（例如 `@electron/packager` 或 `electron-builder`）把仓库作为应用目录打包；macOS 还需要按自己的签名/公证流程处理。macOS 的 `.app` 内部不适合写便携数据，`main.js` 会自动改用 `~/Library/Application Support/MinePilot`；Windows/Linux 仍优先使用程序目录旁的 `data/`。Linux 运行 Adoptium 自动安装时需要系统提供 `tar`；macOS 默认游戏目录为 `~/Library/Application Support/minecraft`，Linux 为 `~/.minecraft`。
 
@@ -525,7 +528,7 @@ node tools\download-electron.js
 npm test
 ```
 
-测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/mods.test.js` 覆盖模组依赖树、推荐前置和整合包下载地址白名单；`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试。
+测试覆盖启动器语言持久化、非法值回退、游戏 `options.txt` 的语言写入（保留其他设置、CRLF 和新建文件场景）、静态与动态中英文文案，以及自动内存推荐、32 位 Java 上限、G1GC 参数、内存设置持久化和内存清理脚本。`tests/mods.test.js` 覆盖模组依赖树、推荐前置和整合包下载地址白名单；`tests/accounts.test.js`、`tests/content.test.js`、`tests/plugins.test.js` 和 `tests/netplay.test.js` 还覆盖多账户加密/迁移、资源包/光影/数据包启停、插件权限与市场 SHA-256、联机参数校验。GitHub Actions 会在每次 push / pull request 时执行语法检查与测试；[`platform.yml`](.github/workflows/platform.yml) 还会在 `ubuntu-latest` 和 `macos-latest` 上重跑这些测试、执行跨平台冒烟（`tests/platform-smoke.js`），并用无头 Electron 启动应用截图校验（`tools/check-smoke.js`）。
 
 <a id="release-build"></a>
 ## 发布构建
@@ -723,7 +726,7 @@ runtime/electron/        内置 Electron 运行时
 - 首次启动会自动检测 Java；如果本机没有合适的 Java，会提示从 Eclipse Adoptium 下载 Temurin JRE（Windows 优先使用清华镜像，macOS/Linux 使用官方 tar.gz），也可以改选 Azul Zulu 或 Amazon Corretto。自动安装 Java 同样要求先开启“在线下载”，并强制校验 SHA256。
 - 崩溃诊断是基于日志关键词和退出代码的启发式分析，不能保证 100% 找到根因；导出报告中的日志已脱敏，但仍可能包含本地路径、用户名和模组列表。
 - 插件在 Web Worker 中运行，不能直接操作页面或读取账户令牌，但仍可自行联网。请只安装可信来源的插件；插件作者和插件行为由你自行判断。
-- macOS / Linux 的平台代码已经实现，但当前仓库只提供 Windows 安装包构建脚本，且本次发布没有在真实 macOS/Linux 机器上完成端到端验证。需要在这些系统上自行安装 Node/Electron 并打包。
+- macOS / Linux 的平台代码已经实现，并由 CI 在 `ubuntu-latest` / `macos-latest` 上实际运行（单元测试 + 跨平台冒烟 + 无头 Electron 启动截图）；但仓库仍只提供 Windows 安装包构建脚本，需要在这些系统自行安装 Node/Electron 后打包。
 
 <a id="pcl-license"></a>
 ## 关于 PCL 的许可
