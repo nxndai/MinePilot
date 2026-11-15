@@ -114,6 +114,18 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
 
+### 打不开 GitHub 链接 / 没有加速器怎么办？
+
+GitHub 在部分网络下无法直接访问，可以按下面的顺序试：
+
+1. **优先从国内可访问的页面下载**：[红石中继站发布页](https://www.mczwlt.net/resource/m4bdnro8)（由作者发布，需要登录站点后才能下载附件）。
+2. 启动器的「检查更新」默认走本仓库 Releases；下载失败会自动换内置镜像（`ghfast.top` / `ghproxy.net`）续传，但镜像可用性不由本项目保证。
+3. 有加速器（如 Watt Toolkit / Steam++）时，直连 GitHub 最快。
+4. 无论从哪里下载，都可以用 Release 里的 `.sha256` 核对文件：
+   ```powershell
+   Get-FileHash .\MinePilot_Setup_1.11.9.exe -Algorithm SHA256
+   ```
+
 ### 为什么下载失败？
 
 1. 检查「设置 → 下载」里的“在线下载”是否已开启。它默认关闭；关闭时只能使用本机已有的版本和文件。

@@ -421,6 +421,39 @@ function fileForAsset(asset, version) {
   return path.join(context.downloadsDir, `MinePilot-${version}-${safeName}`);
 }
 
+/**
+ * 不查 API 也能构造出的 GitHub 下载地址（本仓库发布物命名是固定的）。
+ * 用于 GitHub API 被墙、但镜像还能取到文件的场景。
+ */
+function guessReleaseAsset(version) {
+  const ver = normalizeVersion(version);
+  if (!/^\d+\.\d+\.\d+$/.test(ver)) return null;
+  const base = `https://github.com/nxndai/MinePilot/releases/download/v${ver}`;
+  return {
+    name: `MinePilot_Setup_${ver}.exe`,
+    url: `${base}/MinePilot_Setup_${ver}.exe`,
+    sha256: '',
+    size: 0,
+    platform: '',
+    arch: '',
+  };
+}
+
+/** 从 `.sha256` 文件里读出哈希；直连失败时自动换镜像。 */
+async function fetchChecksum(url) {
+  const candidates = updateSources(url);
+  for (const candidate of candidates) {
+    try {
+      const text = await net.fetchText(candidate, { timeout: 15000, retries: 1 });
+      const match = /([0-9a-f]{64})/i.exec(String(text || ''));
+      if (match) return match[1].toLowerCase();
+    } catch (err) {
+      /* 换下一个源 */
+    }
+  }
+  return '';
+}
+
 async function download() {
   if (!release) {
     const state = await check();
@@ -448,6 +481,16 @@ async function download() {
       }
     } catch (err) {
       logger.warn('读取 GitHub Release 失败:', err.message);
+    }
+  }
+  if (!asset || !asset.url) {
+    // GitHub API 也可能被墙：按固定命名规则构造地址，镜像能取到照样能更新。
+    if (release.source === 'mczwlt') {
+      const guess = guessReleaseAsset(release.version);
+      if (guess) {
+        asset = guess;
+        logger.info('按命名规则构造安装包地址:', guess.url);
+      }
     }
   }
   if (!asset || !asset.url) {
@@ -522,10 +565,16 @@ async function download() {
     if (stat.size <= 0) throw new Error('下载完成的安装包为空');
     if (stat.size > MAX_DOWNLOAD_BYTES) throw new Error('安装包体积异常，已拒绝使用');
     let checksum = '';
-    if (asset.sha256) {
+    let expected = asset.sha256;
+    if (!expected) {
+      // 外链/构造地址没有哈希时，去 Release 的 .sha256 文件取（直连失败会换镜像）。
+      emitProgress({ phase: '获取校验值', percent: 98, receivedBytes: stat.size, totalBytes: stat.size });
+      expected = await fetchChecksum(`${asset.url}.sha256`);
+    }
+    if (expected) {
       emitProgress({ phase: '校验安装包', percent: 99, receivedBytes: stat.size, totalBytes: stat.size });
       checksum = await net.sha256File(destination);
-      if (checksum.toLowerCase() !== String(asset.sha256).toLowerCase()) {
+      if (checksum.toLowerCase() !== String(expected).toLowerCase()) {
         fs.rmSync(destination, { force: true });
         throw new Error('安装包 SHA256 校验失败，文件可能损坏或被篡改');
       }
@@ -538,9 +587,9 @@ async function download() {
       path: destination,
       size: stat.size,
       sha256: checksum,
-      verified: Boolean(asset.sha256),
+      verified: Boolean(expected),
       version: release.version,
-      warning: asset.sha256 ? '' : '更新源没有提供 SHA256，无法校验安装包完整性。',
+      warning: expected ? '' : '更新源没有提供 SHA256，无法校验安装包完整性。',
     };
   } catch (err) {
     try { fs.rmSync(destination, { force: true }); } catch (e) { /* ignore */ }
@@ -588,6 +637,8 @@ module.exports = {
   normalizeVersion,
   resolveFeed,
   fetchMczRelease,
+  guessReleaseAsset,
+  fetchChecksum,
   versionFromName,
   reset,
 };

@@ -41,4 +41,11 @@ assert.strictEqual(updater.compareVersions('1.11.9', '1.11.8'), 1);
 assert.strictEqual(updater.compareVersions('1.11.8', '1.11.9'), -1);
 assert.strictEqual(updater.compareVersions('v1.11.9', '1.11.9'), 0);
 
+// GitHub API 不可用时，按固定命名规则也能构造下载地址
+const guess = updater.guessReleaseAsset('1.11.9');
+assert.strictEqual(guess.name, 'MinePilot_Setup_1.11.9.exe');
+assert.strictEqual(guess.url, 'https://github.com/nxndai/MinePilot/releases/download/v1.11.9/MinePilot_Setup_1.11.9.exe');
+assert.strictEqual(updater.guessReleaseAsset('not-a-version'), null);
+assert.strictEqual(updater.guessReleaseAsset('1.11'), null);
+
 console.log('updater tests passed');
