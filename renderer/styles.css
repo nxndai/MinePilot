@@ -28,7 +28,7 @@ html, body {
 body {
   margin: 0;
   overflow: hidden;
-  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
@@ -670,7 +670,7 @@ select option {
 }
 
 .path {
-  font-family: "Cascadia Mono", Consolas, monospace;
+  font-family: "Cascadia Mono", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   color: #8fa0bd;
   overflow: hidden;
@@ -1149,7 +1149,7 @@ select option {
   border-radius: 10px;
   background: rgba(59, 130, 246, 0.08);
   color: #dbe8ff;
-  font-family: "Cascadia Code", Consolas, monospace;
+  font-family: "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 3px;
@@ -1161,7 +1161,7 @@ select option {
   display: block;
   margin: -2px 0 12px;
   color: var(--accent);
-  font-family: "Cascadia Code", Consolas, monospace;
+  font-family: "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 12px;
   word-break: break-all;
   text-align: center;
@@ -1616,7 +1616,7 @@ select option {
 .dl-name {
   font-size: 13.5px;
   font-weight: 650;
-  font-family: "Cascadia Mono", Consolas, monospace;
+  font-family: "Cascadia Mono", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
 }
 
 .dl-meta {
@@ -2266,7 +2266,7 @@ select option {
 .range-value {
   min-width: 72px;
   text-align: right;
-  font-family: "Cascadia Mono", Consolas, monospace;
+  font-family: "Cascadia Mono", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 11.5px;
   color: var(--text-2);
 }
@@ -2514,7 +2514,7 @@ select option {
   margin: 0;
   padding: 13px 18px 18px;
   overflow-y: auto;
-  font-family: "Cascadia Mono", Consolas, monospace;
+  font-family: "Cascadia Mono", Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 11px;
   line-height: 1.7;
   color: #a9b7cf;
@@ -3620,7 +3620,7 @@ html[data-theme="light"] .monitor-hero { background: linear-gradient(120deg, rgb
 .monitor-dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); opacity: 0.6; }
 .monitor-uptime { flex: 0 0 auto; text-align: right; display: flex; flex-direction: column; gap: 2px; }
 .monitor-uptime span { font-size: 9px; letter-spacing: 1.1px; color: var(--muted); }
-.monitor-uptime strong { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 25px; font-weight: 550; letter-spacing: 0.5px; color: var(--monitor-ok); }
+.monitor-uptime strong { font-family: "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace; font-size: 25px; font-weight: 550; letter-spacing: 0.5px; color: var(--monitor-ok); }
 
 .monitor-grid { display: grid; grid-template-columns: 1.35fr 1.1fr 0.72fr 0.72fr; gap: 14px; }
 .monitor-metric { padding: 15px 16px; min-width: 0; display: flex; flex-direction: column; }
@@ -3649,7 +3649,7 @@ html[data-theme="light"] .monitor-log-head { border-bottom-color: rgba(28, 49, 8
   overflow: auto;
   background: rgba(5, 9, 15, 0.55);
   color: #a8c4e8;
-  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-family: "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10px;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -3880,7 +3880,7 @@ html[data-theme="light"] .avatar.local-head { background-color: #dfe8f5; }
   display: block;
   overflow: hidden;
   color: var(--text);
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -3949,7 +3949,7 @@ html[data-theme="light"] .avatar.local-head { background-color: #dfe8f5; }
   border-left: 2px solid rgba(159, 182, 214, 0.3);
   background: rgba(0, 0, 0, 0.18);
   color: #9eacc2;
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -3974,7 +3974,7 @@ html[data-theme="light"] .avatar.local-head { background-color: #dfe8f5; }
   border-radius: 9px;
   background: rgba(8, 12, 20, 0.5);
   color: var(--text-2);
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 11px;
   line-height: 1.55;
   resize: vertical;
@@ -4010,7 +4010,7 @@ html[data-theme="light"] .avatar.local-head { background-color: #dfe8f5; }
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.22);
   color: #aebbd0;
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -4039,7 +4039,7 @@ html[data-theme="light"] .avatar.local-head { background-color: #dfe8f5; }
   padding: 0 20px 17px;
   overflow: auto;
   color: var(--muted);
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -4108,7 +4108,7 @@ html[data-theme="light"] .diag-suggestions li + li { border-color: rgba(28, 49, 
    更新与插件
    ============================================================ */
 .update-feed-control { flex: 1; min-width: 0; justify-content: flex-end; }
-.update-feed-control .input { flex: 1 1 300px; min-width: 0; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+.update-feed-control .input { flex: 1 1 300px; min-width: 0; font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace; font-size: 11px; }
 .update-status-control { justify-content: flex-end; }
 .update-version-chip {
   display: inline-flex;
@@ -4118,7 +4118,7 @@ html[data-theme="light"] .diag-suggestions li + li { border-color: rgba(28, 49, 
   border-radius: 4px;
   color: var(--accent-2);
   background: rgba(59, 130, 246, 0.08);
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   letter-spacing: 0.2px;
   white-space: nowrap;
@@ -4205,7 +4205,7 @@ html[data-theme="light"] .diag-suggestions li + li { border-color: rgba(28, 49, 
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.2);
   color: var(--text-2);
-  font-family: Consolas, "Cascadia Mono", monospace;
+  font-family: Consolas, "Cascadia Mono", "Noto Sans Mono CJK SC", "Sarasa Mono SC", "DejaVu Sans Mono", monospace;
   font-size: 10.5px;
   line-height: 1.65;
   white-space: pre-wrap;

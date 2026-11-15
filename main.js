@@ -2302,7 +2302,38 @@ async function captureScreenshot() {
               window.__pluginClick = { toast: [], clicked: false };
             }
           }
+          // 字体探针：把两个不同汉字画到 canvas 上，缺中文字形时两张图会完全一样（豆腐块）。
+          const fontProbe = (() => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 64;
+              canvas.height = 64;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return { available: false, cjkRendered: null };
+              const family = getComputedStyle(document.body).fontFamily || 'sans-serif';
+              const draw = (ch) => {
+                ctx.clearRect(0, 0, 64, 64);
+                ctx.fillStyle = '#000';
+                ctx.font = '32px ' + family;
+                ctx.textBaseline = 'middle';
+                ctx.fillText(ch, 4, 32);
+                return canvas.toDataURL();
+              };
+              const first = draw('测');
+              const second = draw('试');
+              const blank = draw(' ');
+              return {
+                available: true,
+                family,
+                cjkRendered: first !== second && first !== blank,
+                measure: ctx.measureText('测试中文').width,
+              };
+            } catch (err) {
+              return { available: false, error: String((err && err.message) || err) };
+            }
+          })();
           return {
+            fonts: fontProbe,
             title: document.title,
             view: window.MP && MP.state ? MP.state.view : null,
             body: { scrollWidth: document.body.scrollWidth, clientWidth: document.body.clientWidth, scrollHeight: document.body.scrollHeight, clientHeight: document.body.clientHeight },

@@ -39,11 +39,13 @@ jobs:
         run: npm test
 
       # 真正把 Electron 跑起来：--shot 截图 + --dump 导出界面状态后自动退出。
-      - name: Install xvfb (Linux)
+      # Runner 默认没有中文字体，不装的话截图里的中文会变成方块。
+      - name: Install Linux runtime libs and CJK fonts
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgbm1 libasound2t64 || sudo apt-get install -y xvfb libgbm1 libasound2
+          sudo apt-get install -y xvfb libgbm1 fonts-noto-cjk fonts-noto-color-emoji
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
       - name: Launch app headless (Linux)
         if: runner.os == 'Linux'

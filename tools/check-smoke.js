@@ -31,5 +31,10 @@ assert.ok(dump.body && dump.body.clientWidth > 400, `界面宽度异常：${JSON
 assert.ok(Array.isArray(dump.errors) && dump.errors.length === 0, `渲染进程有报错：${JSON.stringify(dump.errors)}`);
 assert.ok(dump.text && dump.text.length > 50, '页面没有渲染出内容');
 
+// 中文字形：缺字体时 canvas 上两个不同汉字会渲染成同一个豆腐块。
+assert.ok(dump.fonts, 'smoke.json 里没有字体探针结果');
+assert.ok(dump.fonts.available, '无法在渲染进程里检测字体');
+assert.strictEqual(dump.fonts.cjkRendered, true, `中文字符没有正常渲染（缺中文字体）：${JSON.stringify(dump.fonts)}`);
+
 console.log(`smoke ok: ${dump.view} / ${width}x${height} / screenshot ${png.length} bytes / errors 0`);
 console.log(`Node ${process.version} on ${process.platform}/${process.arch}`);
