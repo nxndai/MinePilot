@@ -50,7 +50,7 @@
 
 如果只需要启动本机已安装的版本，可以不开启在线下载。
 
-遇到安装、下载或杀毒软件报毒问题，先看 [常见问题（FAQ）](#faq)。
+除 GitHub Releases 外，也可以在[红石中继站发布页](https://www.mczwlt.net/resource/m4bdnro8)下载（由作者本人发布，附件需登录站点后下载）。遇到安装、下载或杀毒软件报毒问题，先看 [常见问题（FAQ）](#faq)。
 
 一个轻量的 Minecraft Java 版启动器，使用 Electron 独立实现。
 
@@ -400,6 +400,8 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 
 默认更新源是本仓库 Releases（`https://github.com/nxndai/MinePilot`），所以装好就能检查更新。可以在「设置 → 启动器更新」填写 HTTPS 地址覆盖它，或设置环境变量 `MINEPILOT_UPDATE_URL`；**留空表示使用默认源**。也支持直接粘贴 GitHub 仓库地址，启动器会转换为 GitHub Releases API。联网只发生在启动时（可在设置里关掉自动检查）或你点击「检查更新 / 更新」时，不会后台定时轮询。GitHub 直连拿不到安装包时，会用内置镜像（ghfast.top / ghproxy.net）续传下载，完成后仍按 Release 的 SHA256 校验。
 
+也可以直接填[红石中继站资源页](https://www.mczwlt.net/resource/m4bdnro8)（例如 `https://www.mczwlt.net/resource/m4bdnro8`）当作**版本来源**：启动器会通过站点公开 API 读取最新版本号和更新说明。注意站内附件下载需要登录（站点接口对匿名请求返回 401），所以启动器会改用同一版本的 GitHub Release 安装包；如果该版本还没同步到 GitHub，会提示你到发布页手动下载。
+
 manifest 示例：
 
 ```json
@@ -717,7 +719,7 @@ runtime/electron/        内置 Electron 运行时
 - Forge / NeoForge 安装器需要本机已有符合要求的 Java；启动器不会在安装前自动下载 Java，请先在「设置 → Java 管理」中安装（自动安装需要先开启“在线下载”）。
 - OptiFine / LiteLoader 目前只做识别，不提供自动安装；可识别已由其他安装器装好的继承式版本。
 - 本地皮肤/披风默认只在启动器内预览、管理和生成本地头像，不会自动注入离线游戏。登录 Microsoft 正版账户后可以在角色工坊主动上传皮肤到 Mojang 档案；离线账户不会写回 Mojang，原版游戏内固定显示 Steve/Alex，需要支持本地皮肤的模组。
-- 更新源默认是本仓库 Releases；如果你的网络访问不了 GitHub，检查更新可能失败；更新包下载会先尝试直连，失败后自动换内置镜像，仍可用「设置 → 启动器更新」换成自建 manifest。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
+- 更新源默认是本仓库 Releases；如果你的网络访问不了 GitHub，检查更新可能失败；更新包下载会先尝试直连，失败后自动换内置镜像，仍可用「设置 → 启动器更新」换成自建 manifest 或红石中继站资源页（后者只提供版本信息，附件需登录，安装包仍从 GitHub 取同版本）。整合包导入已支持 `.mrpack` 和常见 ZIP；**在线搜索并下载整合包只支持 Modrinth**，CurseForge 整合包没有文件直链，只能用本地 `.zip` 导入。
 - CurseForge 官方 API 需要你自行申请 API Key；没有 Key 时只能使用 Modrinth。API Key 仅保存在本机 `config.json`，请勿分享给别人。
 - 导入带下载清单的 `.mrpack` 需要能访问清单里的下载地址；网络不可用或下载地址失效时，导入会中止并保留已完成文件。
 - “在线下载”默认关闭；首次安装版本、下载模组/整合包或自动安装 Java 前，需要到「设置 → 下载」手动开启。

@@ -33,6 +33,11 @@ const MAX_DOWNLOAD_BYTES = 800 * 1024 * 1024;
 // 内置默认更新源：本仓库的 Releases。用户没有配置时直接用它，开箱即可检查更新。
 const OFFICIAL_REPO = 'https://github.com/nxndai/MinePilot';
 const OFFICIAL_RELEASES = `${OFFICIAL_REPO}/releases/latest`;
+// 红石中继站资源页：可以当作"版本来源"（公开 API 能读版本与更新说明），
+// 但站内附件下载需要登录，所以真正的安装包仍回退到 GitHub Releases。
+const MCZ_RESOURCE = 'https://www.mczwlt.net/resource/m4bdnro8';
+const MCZ_API = 'https://www.mczwlt.net/api/hub';
+const GITHUB_LATEST = 'https://api.github.com/repos/nxndai/MinePilot/releases/latest';
 // GitHub 发布资源在部分网络下拿不到数据时的备用下载节点。
 // 注意：镜像只改传输路径，下载完成仍会用 Release 提供的 SHA256 校验。
 const UPDATE_MIRRORS = ['https://ghfast.top/', 'https://ghproxy.net/'];
@@ -107,10 +112,20 @@ function isSafeUrl(raw) {
 function resolveFeed(raw) {
   const input = String(raw || '').trim();
   if (!input) return '';
+  // 红石中继站资源页：转成内部标记，走站点公开 API 读版本信息。
+  const mcz = /^https?:\/\/(?:www\.)?mczwlt\.net\/resource\/([A-Za-z0-9]{4,32})\/?(?:[?#].*)?$/i.exec(input);
+  if (mcz) return `mczwlt:${mcz[1]}`;
   // 允许直接粘贴 GitHub 仓库或 releases 页面，自动转成 API 地址。
   const github = /^https:\/\/github\.com\/([^/]+)\/([^/?#]+)(?:\/releases.*)?\/?$/i.exec(input);
   if (github) return `https://api.github.com/repos/${github[1]}/${github[2]}/releases/latest`;
   return input;
+}
+
+/** 从"天圆地方 v0.2.7"这类版本名里取出可比较的版本号。 */
+function versionFromName(value) {
+  const text = String(value || '').trim();
+  const match = /(\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?)/.exec(text);
+  return normalizeVersion(match ? match[1] : text);
 }
 
 function normalizeVersion(value) {
@@ -267,6 +282,67 @@ function emitProgress(payload) {
   }
 }
 
+async function fetchGithubRelease() {
+  const raw = await net.fetchJson(GITHUB_LATEST, {
+    timeout: 20000,
+    retries: 2,
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  return normalizeRelease(raw);
+}
+
+/**
+ * 从红石中继站资源页读取版本信息（公开 API，不需要登录）。
+ * 站内附件下载需要登录，所以这里只负责"发现新版本"，安装包由 GitHub 提供。
+ */
+async function fetchMczRelease(shortId) {
+  const detail = await net.fetchJson(`${MCZ_API}/resource/${encodeURIComponent(shortId)}`, {
+    timeout: 20000,
+    retries: 2,
+  });
+  const resourceId = String(detail._id || '');
+  if (!resourceId) throw new Error('红石中继站没有返回资源 ID');
+
+  // latestVersions 是数组（可能是空数组），recommendedVersion 是单个对象。
+  const latest = Array.isArray(detail.latestVersions)
+    ? detail.latestVersions[0]
+    : (detail.latestVersions && typeof detail.latestVersions === 'object' ? detail.latestVersions : null);
+  let version = latest || detail.recommendedVersion || null;
+  if (!version) {
+    const list = await net.fetchJson(
+      `${MCZ_API}/resource/version/search?resource=${encodeURIComponent(resourceId)}&page=1&pageSize=20`,
+      { timeout: 20000, retries: 2 },
+    );
+    const items = Array.isArray(list.data) ? list.data : [];
+    version = items.find((item) => item && item.status === 'ACCEPTED') || items[0] || null;
+  }
+  if (!version) throw new Error('这个资源还没有已发布的版本（站点可能仍在审核）');
+
+  const files = Array.isArray(version.files) ? version.files : [];
+  const assets = files.map((item) => ({
+    name: String((item.fileInfo && item.fileInfo.filename) || ''),
+    url: '',
+    platform: '',
+    arch: '',
+    sha256: '',
+    size: Number((item.fileInfo && item.fileInfo.size) || 0),
+  }));
+  const chosen = files.find((item) => /\.exe$/i.test(String((item.fileInfo && item.fileInfo.filename) || '')))
+    || files.find((item) => /\.zip$/i.test(String((item.fileInfo && item.fileInfo.filename) || '')))
+    || files[0]
+    || null;
+
+  return {
+    version: versionFromName(version.version || version.semver || ''),
+    notes: String(version.changelog || ''),
+    publishedAt: version.createdAt || '',
+    url: `https://www.mczwlt.net/resource/${shortId}`,
+    asset: chosen ? assets[files.indexOf(chosen)] : null,
+    assets,
+    source: 'mczwlt',
+  };
+}
+
 async function check() {
   if (checking) return snapshot();
   checking = true;
@@ -279,6 +355,23 @@ async function check() {
     return snapshot();
   }
   const feed = resolveFeed(rawFeed);
+  if (feed.startsWith('mczwlt:')) {
+    try {
+      logger.info('检查启动器更新（红石中继站）:', feed.slice('mczwlt:'.length));
+      release = await fetchMczRelease(feed.slice('mczwlt:'.length));
+      downloaded = null;
+      lastCheck = Date.now();
+      logger.info('发现更新:', release.version, release.asset ? release.asset.name : '(无附件)');
+    } catch (err) {
+      lastError = err.message || String(err);
+      release = null;
+      downloaded = null;
+      logger.warn('检查更新失败:', lastError);
+    } finally {
+      checking = false;
+    }
+    return snapshot();
+  }
   if (!isSafeFeed(feed)) {
     lastError = '更新源必须使用 HTTPS（本地调试地址 127.0.0.1 / localhost 除外）';
     checking = false;
@@ -323,10 +416,29 @@ async function download() {
     const state = await check();
     if (!state.available) throw new Error(state.message || '没有可下载的更新');
   }
-  if (!release.asset) throw new Error(`版本 ${release.version} 没有适用于当前平台的安装包`);
   if (compareVersions(release.version, context.currentVersion) <= 0) throw new Error('当前版本已经不低于更新源中的版本，不需要更新');
   if (active) throw new Error('已有更新正在下载');
-  const asset = release.asset;
+  let asset = release.asset;
+  // 红石中继站只提供版本信息，站内附件需要登录才能下载；
+  // 如果同一版本在 GitHub Release 里也有，就直接用 GitHub 的安装包。
+  if (!asset || !asset.url) {
+    if (release.source === 'mczwlt') {
+      try {
+        const fallback = await fetchGithubRelease();
+        if (fallback && fallback.asset && fallback.asset.url
+          && normalizeVersion(fallback.version) === normalizeVersion(release.version)) {
+          asset = fallback.asset;
+          logger.info('红石中继站附件需登录，改用 GitHub 同版本安装包:', release.version);
+        }
+      } catch (err) {
+        logger.warn('读取 GitHub Release 失败:', err.message);
+      }
+    }
+  }
+  if (!asset || !asset.url) {
+    const page = release.url || MCZ_RESOURCE;
+    throw new Error(`红石中继站的附件需要登录才能下载（站点接口返回 401）。请到 ${page} 手动下载，或确认该版本已同步到 GitHub Releases。`);
+  }
   if (asset.size && asset.size > MAX_DOWNLOAD_BYTES) throw new Error('安装包体积异常，已拒绝下载');
   const destination = fileForAsset(asset, release.version);
   const controller = new AbortController();
@@ -459,5 +571,7 @@ module.exports = {
   snapshot,
   compareVersions,
   normalizeVersion,
+  resolveFeed,
+  versionFromName,
   reset,
 };
