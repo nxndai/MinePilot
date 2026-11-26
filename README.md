@@ -1,6 +1,6 @@
 # MinePilot
 
-**当前最新版本：v1.11.13（2026-11-26 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
+**当前最新版本：v1.11.14（2026-11-26 更新）** · [GitHub 仓库](https://github.com/nxndai/MinePilot) · [查看 Release 页面](https://github.com/nxndai/MinePilot/releases)
 
 [![CI](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/ci.yml)
 [![Platform smoke (macOS / Linux)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml/badge.svg)](https://github.com/nxndai/MinePilot/actions/workflows/platform.yml)
@@ -42,9 +42,9 @@
 <a id="quick-start"></a>
 ## 快速开始
 
-- 下载 `MinePilot_Setup_1.11.13.exe`。
+- 下载 `MinePilot_Setup_1.11.14.exe`。
 - 双击安装（如果提示未知发布者，选择“仍要运行”）。
-- 不想安装时，可下载 `MinePilot_1.11.13_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
+- 不想安装时，可下载 `MinePilot_1.11.14_portable.zip`，解压到普通可写目录后双击 `MinePilot.exe` 直接运行。
 - 首次启动 → 在「设置 → 下载」勾选“在线下载” → 设置 Java → 下载版本 → 开始游戏。
 - 需要英文界面时，在「设置 → 语言」切换到 English；启动游戏时会自动把游戏语言改为英文（`en_us`）。
 
@@ -109,7 +109,7 @@ MinePilot 当前的 Windows 构建没有代码签名证书，SmartScreen 会把�
 
 - 只从 [GitHub Releases](https://github.com/nxndai/MinePilot/releases) 下载，并核对同目录的 `.sha256` 文件：
   ```powershell
-  Get-FileHash .\MinePilot_Setup_1.11.13.exe -Algorithm SHA256
+  Get-FileHash .\MinePilot_Setup_1.11.14.exe -Algorithm SHA256
   ```
 - 安装包提示时选择「更多信息」→「仍要运行」；便携版如果被 SmartScreen 拦住，确认来源后选择「仍要运行」。
 - 如果文件来自网盘、群文件或转载站，直接删除，重新从 Release 下载；不要为了绕过提示关闭整个杀毒软件。
@@ -123,7 +123,7 @@ GitHub 在部分网络下无法直接访问，可以按下面的顺序试：
 3. 有加速器（如 Watt Toolkit / Steam++）时，直连 GitHub 最快。
 4. 无论从哪里下载，都可以用 Release 里的 `.sha256` 核对文件：
    ```powershell
-   Get-FileHash .\MinePilot_Setup_1.11.13.exe -Algorithm SHA256
+   Get-FileHash .\MinePilot_Setup_1.11.14.exe -Algorithm SHA256
    ```
 
 ### 光影 / 资源包在哪里下载？
@@ -185,7 +185,15 @@ MinePilot 使用 Electron 运行时和自解压安装器，而且当前构建没
 <a id="changelog"></a>
 ## 更新记录
 
+### 1.11.14
+
+- 模组页新增 **「一键修复」**：健康检查发现问题时，点一下就能自动禁用重复 modid 的旧文件（保留版本最高的）、启用被禁用的必需前置、从 Modrinth 补装缺失的必需前置。
+- 修复后弹窗列出每一步动作和剩余问题数；版本范围不匹配、两个模组功能互斥这类需要人判断的情况只提示，不会擅自替换。
+- 修正健康检查的重复检测：只把**启用中**的文件算作重复，避免"禁用了旧文件仍一直报重复"、修复后不收敛的问题。
+- 补装前置只接受 Modrinth 上 slug 与 modid 完全一致的项目，找不准就报告、不乱装。
+
 ### 1.11.13
+
 
 - 「内容」页在「在线下载」关闭时，会直接显示 **「开启在线下载」** 按钮：点一下确认就能开启，不用再去设置里翻开关。
 - 关闭状态下搜索按钮置灰，提示文案改成「点右侧『开启在线下载』就能搜索并下载内容」，避免误以为没有光影/资源包下载功能。
@@ -466,13 +474,13 @@ manifest 示例：
 
 ```json
 {
-  "version": "1.11.13",
+  "version": "1.11.14",
   "notes": "修复……\n新增……",
   "publishedAt": "2026-10-31T12:00:00Z",
   "assets": [
     {
-      "name": "MinePilot_Setup_1.11.13.exe",
-      "url": "https://example.com/downloads/MinePilot_Setup_1.11.13.exe",
+      "name": "MinePilot_Setup_1.11.14.exe",
+      "url": "https://example.com/downloads/MinePilot_Setup_1.11.14.exe",
       "platform": "windows",
       "arch": "x64",
       "sha256": "安装包的 SHA256",
@@ -651,7 +659,7 @@ node tools\package-desktop-installer.js
 node tools\package-desktop-installer.js
 ```
 
-输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.13.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
+输出为 `dist/installer/MinePilot_Setup_<版本号>.exe`，当前版本是 `MinePilot_Setup_1.11.14.exe`。GitHub Release 中的 Windows 安装包由 GitHub Actions 从公开源码重新构建，实际 SHA256 以 Release 说明和同名 `.sha256` 文件为准。安装程序是一个小型 C# 引导器 + 追加 ZIP 的自解压包（规避 NSIS 32 位编译器对超大 Electron 文件的 mmap 限制），约 110 MB：
 
 1. 默认安装到 `%LOCALAPPDATA%\Programs\MinePilot`，**不需要管理员权限**；
 2. 创建桌面和开始菜单快捷方式，快捷方式直接启动 `MinePilot.exe --no-sandbox`，并注册卸载项；
@@ -659,7 +667,7 @@ node tools\package-desktop-installer.js
 4. 升级安装时保留目标目录已有的 `data\`；不会把旧便携版数据打进安装包；
 5. 卸载时保留 `data\`，不会删除账户和设置。
 
-Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.13.exe`），不会覆盖独立应用安装包。
+Edge 备用版安装包仍可用 `node tools\package-installer.js` 构建，输出为 `dist/installer/MinePilot_Edge_Setup_<版本号>.exe`（本次为 `MinePilot_Edge_Setup_1.11.14.exe`），不会覆盖独立应用安装包。
 
 两个安装包共用 `tools/installer/sfx/Installer.cs` 编译的小型 C# 安装器：安装数据用 Windows 自带 `tar.exe` 打成 ZIP 后追加在 exe 末尾，安装/卸载时再解压或清理。它们都没有代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“更多信息 → 仍要运行”即可。
 
