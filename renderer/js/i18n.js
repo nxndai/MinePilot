@@ -1171,6 +1171,8 @@
     "32 位": "32-bit",
     "启动时会优先使用“按版本指定”的 Java；没有指定时，自动选择满足要求的最低版本。手动移除只会从列表隐藏，不会删除磁盘文件。": "Java assigned per version takes priority at launch. Without an assignment, the lowest compatible version is selected automatically. Removing an entry only hides it from this list; files on disk are not deleted.",
     "联机工具已退出": "Tunneling tool exited",
+    "开启在线下载": "Enable online downloads",
+    "「在线下载」默认关闭；点右侧「开启在线下载」就能搜索并下载内容。": "Online downloads are off by default. Click \"Enable online downloads\" to search and download content.",
     "端口与连通性检测": "Port & connectivity check",
     "确认游戏端口是否在本机监听；只检测本机，不会扫描外网。": "Checks whether the game port is listening on this machine. Local only; no external scanning.",
     "端口": "Port",

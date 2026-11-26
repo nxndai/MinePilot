@@ -390,12 +390,19 @@
     const box = $('#content-results');
     const status = $('#content-search-status');
     if (!box) return;
+    const online = Boolean(MP.state.settings && MP.state.settings.onlineDownloads);
+    // 关掉在线下载时，除了提示文字，还给一个能直接点开的按钮，
+    // 避免用户以为"没有下载光影/资源包这个功能"。
+    const enableBtn = $('#btn-content-enable-online');
+    if (enableBtn) enableBtn.classList.toggle('hidden', online);
+    const searchBtn = $('#btn-content-search');
+    if (searchBtn) searchBtn.disabled = !online;
     if (status) {
       status.textContent = state.searchHits.length
         ? `找到 ${state.searchHits.length} 个结果`
-        : (MP.state.settings && MP.state.settings.onlineDownloads
+        : (online
           ? '输入关键词搜索 Modrinth；结果来自第三方服务。'
-          : '需要先在设置 → 下载中开启“在线下载”。');
+          : '「在线下载」默认关闭；点右侧「开启在线下载」就能搜索并下载内容。');
     }
     if (!state.searchHits.length) {
       box.innerHTML = '';
@@ -410,6 +417,24 @@
       </div>
       <button class="btn small primary" data-content-install="${esc(hit.projectId)}">${state.type === 'datapack' ? '下载' : '下载并启用'}</button>
     </div>`).join('');
+  }
+
+  /** 一键开启在线下载（下载光影/资源包/数据包需要它）。 */
+  async function enableOnline() {
+    const ok = await MP.confirm({
+      title: '开启在线下载',
+      text: '开启后会从 Modrinth 等第三方服务搜索并下载资源包、光影、数据包，下载内容会做完整性校验。之后可以在「设置 → 下载」里随时关闭。',
+      confirmLabel: '开启',
+    });
+    if (!ok) return;
+    try {
+      const next = await MP.api.invoke('settings:update', { onlineDownloads: true });
+      MP.state.settings = next;
+      MP.toast('在线下载已开启，可以搜索并下载光影了', 'ok', 6000);
+      renderSearch();
+    } catch (err) {
+      MP.toast(`开启失败：${err.message}`, 'err', 6000);
+    }
   }
 
   async function search() {
@@ -525,6 +550,7 @@
 
   function bind() {
     MP.on('#content-target', 'change', () => { state.items = []; load(); });
+    MP.on('#btn-content-enable-online', 'click', enableOnline);
     MP.on('#content-tabs', 'click', (event) => {
       const button = event.target.closest('[data-content-type]');
       if (button) setType(button.dataset.contentType);
