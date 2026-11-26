@@ -86,6 +86,7 @@ const versionsCore = require('./src/core/versions');
 const savesCore = require('./src/core/saves');
 const modsCore = require('./src/core/mods');
 const modmanager = require('./src/core/modmanager');
+const modfix = require('./src/core/modfix');
 const modpack = require('./src/core/modpack');
 const mojang = require('./src/core/mojang');
 const installer = require('./src/core/installer');
@@ -1057,6 +1058,27 @@ function registerIpc() {
     } catch (err) {
       logger.warn('读取已安装模组失败:', err.message);
       return { ok: false, code: err.code || 'MOD_LIST_FAILED', error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:autofix', async (event, payload = {}) => {
+    const targetVersionId = String((payload && payload.targetVersionId) || '').trim();
+    if (!targetVersionId) return { ok: false, code: 'NO_TARGET', error: '请先选择目标版本' };
+    try {
+      const s = settings.get();
+      const list = await versionsCore.listVersions(s.gameDir, s.lastPlayed, s.versionIsolation, s.gameDataDir);
+      const target = list.find((version) => version.id === targetVersionId);
+      if (!target) return { ok: false, code: 'NO_TARGET', error: '目标版本不存在，请刷新版本列表' };
+      const win = senderWindow(event);
+      const result = await modfix.autoFix(target, {
+        onProgress: (progress) => {
+          if (win && !win.isDestroyed()) win.webContents.send('mods:fix-progress', progress);
+        },
+      });
+      return result;
+    } catch (err) {
+      logger.warn('模组自动修复失败:', err.message);
+      return { ok: false, code: err.code || 'MOD_FIX_FAILED', error: err.message };
     }
   });
 

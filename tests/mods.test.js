@@ -65,8 +65,14 @@ try {
 
   // 重复 modid 应被识别。
   jar(modsDir, 'fabric-api-old.jar', { id: 'fabric-api', name: 'Fabric API Old', version: '0.80.0' });
+  // 只有"都在启用"时才算重复 modid；禁用文件不会被加载，不算冲突。
+  modmanager.setEnabled(target, 'fabric-api.jar.disabled', true);
   const duplicate = modmanager.list(target);
   assert.ok(duplicate.health.issues.some((issue) => issue.type === 'duplicate-modid'));
+  // 禁用其中一个后，重复提示应当消失（自动修复就是靠这个收敛）。
+  modmanager.setEnabled(target, 'fabric-api-old.jar', false);
+  const cleared = modmanager.list(target);
+  assert.ok(!cleared.health.issues.some((issue) => issue.type === 'duplicate-modid'));
 
   // 启用/禁用只改文件名，不删除内容。
   const enabled = modmanager.setEnabled(target, 'cool-mod.jar', false);

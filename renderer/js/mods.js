@@ -973,9 +973,11 @@
   }
 
   function renderHealth() {
+    const fixButton = $('#btn-mod-autofix');
     const root = $('#installed-health');
     if (!root) return;
     const issues = (installedHealth && installedHealth.issues) || [];
+    if (fixButton) fixButton.classList.toggle('hidden', !issues.length);
     const hasUpdates = installedUpdates.length > 0;
     if (!issues.length && !hasUpdates && !updateBusy) {
       root.classList.add('hidden');
@@ -1121,6 +1123,51 @@
       dirs: installedDirs,
       count: installedMods.length,
     });
+  }
+
+  /** 一键修复：禁用重复 modid、启用被禁用的前置、从 Modrinth 补装缺失前置。 */
+  async function autoFixIssues() {
+    const target = targetVersion();
+    if (!target) {
+      MP.toast('请先选择实例', 'err');
+      return;
+    }
+    const button = $('#btn-mod-autofix');
+    if (button) button.disabled = true;
+    let result;
+    try {
+      result = await MP.api.invoke('mods:autofix', { targetVersionId: target.id });
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    if (button) button.disabled = false;
+    if (!result || !result.ok) {
+      MP.toast(`自动修复失败：${(result && result.error) || '未知错误'}`, 'err', 7000);
+      return;
+    }
+
+    const actions = Array.isArray(result.actions) ? result.actions : [];
+    const failed = Array.isArray(result.failed) ? result.failed : [];
+    const notes = Array.isArray(result.notes) ? result.notes : [];
+    const lines = actions.map((item) => {
+      if (item.type === 'disable') return `已禁用重复文件：${item.filename}（${item.detail}）`;
+      if (item.type === 'enable') return `已启用前置：${item.filename}（${item.detail}）`;
+      if (item.type === 'install') return `已补装前置：${item.project || item.modId}`;
+      return `${item.type}：${item.detail || ''}`;
+    });
+    const failedLines = failed.map((item) => `未处理：${item.modId || item.filename || ''} — ${item.error}`);
+    const body = `<p>${actions.length ? `完成了 ${actions.length} 项修复。` : '没有可以自动修复的项目。'}</p>
+      ${lines.length ? `<ul class="modfix-list">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
+      ${failedLines.length ? `<p class="muted-sm">${esc(failedLines.join('\n'))}</p>` : ''}
+      ${notes.length ? `<p class="muted-sm">${esc(notes.join('\n'))}</p>` : ''}
+      <p class="muted-sm">修复后仍有 ${(result.after && result.after.issues) || 0} 个问题；需要人工判断的冲突不会被自动替换。</p>`;
+    await MP.modal({
+      title: '模组冲突自动修复',
+      width: 560,
+      body,
+      actions: [{ label: '知道了', kind: 'primary', value: true }],
+    });
+    await loadInstalled();
   }
 
   async function checkInstalledUpdates() {
@@ -1739,6 +1786,7 @@
     MP.on('#btn-installed-open', 'click', openModsFolder);
     MP.on('#btn-installed-refresh', 'click', () => loadInstalled());
     MP.on('#btn-installed-check', 'click', () => loadInstalled());
+    MP.on('#btn-mod-autofix', 'click', autoFixIssues);
     MP.on('#btn-installed-updates', 'click', checkInstalledUpdates);
     MP.on('#btn-installed-enable-all', 'click', () => batchSetEnabled(true));
     MP.on('#btn-installed-disable-all', 'click', () => batchSetEnabled(false));

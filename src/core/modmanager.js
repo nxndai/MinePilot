@@ -539,10 +539,24 @@ function healthFromList(mods) {
     for (const provided of mod.provides || []) addProvider(provided, mod);
   }
 
+  // 只有"启用中"的文件才会被加载，重复 modid 也只在这种文件之间才算冲突；
+  // 已禁用（.jar.disabled）的文件参与 byId 是为了识别"装了但被禁用"的前置。
+  const enabledById = new Map();
+  for (const mod of enabled) {
+    const addEnabled = (id) => {
+      const key = String(id || '').trim().toLowerCase();
+      if (!key) return;
+      if (!enabledById.has(key)) enabledById.set(key, []);
+      if (!enabledById.get(key).includes(mod)) enabledById.get(key).push(mod);
+    };
+    addEnabled(mod.modId);
+    for (const provided of mod.provides || []) addEnabled(provided);
+  }
+
   // 同一个 modid 出现多个文件时，Fabric/Forge 可能只加载其中一个，
   // 版本冲突和“明明装了却找不到前置”往往都由此产生。
   const duplicateIds = [];
-  for (const [id, list] of byId.entries()) {
+  for (const [id, list] of enabledById.entries()) {
     if (id !== id.toLowerCase()) continue;
     const unique = Array.from(new Set(list.map((mod) => mod.modId || id)));
     if (unique.length && list.length > 1) {
